@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033785248522",
+    "project_id": "royal-hand-lms",
+    "storage_bucket": "royal-hand-lms.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033785248522:android:1884b9e942a57de64d08f3",
+        "android_client_info": {
+          "package_name": "com.sahan.lms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsvkTzFj0k6ES0TUKPOdF5Tb5gdEu7aQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
