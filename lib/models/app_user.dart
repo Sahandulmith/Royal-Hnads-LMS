@@ -9,6 +9,7 @@ class AppUser {
   final String? registeredDeviceId;
   final String? deviceModel;
   final String? deviceOs;
+  final String? password;
   final DateTime createdAt;
 
   AppUser({
@@ -20,6 +21,7 @@ class AppUser {
     this.registeredDeviceId,
     this.deviceModel,
     this.deviceOs,
+    this.password,
     required this.createdAt,
   });
 
@@ -36,6 +38,7 @@ class AppUser {
       'registered_device_id': registeredDeviceId,
       'device_model': deviceModel,
       'device_os': deviceOs,
+      'password': password ?? '',
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -50,6 +53,7 @@ class AppUser {
       registeredDeviceId: map['registered_device_id'],
       deviceModel: map['device_model'],
       deviceOs: map['device_os'],
+      password: map['password'] ?? '',
       createdAt: map['created_at'] != null 
           ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now() 
           : DateTime.now(),
@@ -64,6 +68,7 @@ class AppUser {
     String? registeredDeviceId,
     String? deviceModel,
     String? deviceOs,
+    String? password,
   }) {
     return AppUser(
       uid: uid,
@@ -74,6 +79,7 @@ class AppUser {
       registeredDeviceId: registeredDeviceId ?? this.registeredDeviceId,
       deviceModel: deviceModel ?? this.deviceModel,
       deviceOs: deviceOs ?? this.deviceOs,
+      password: password ?? this.password,
       createdAt: createdAt,
     );
   }

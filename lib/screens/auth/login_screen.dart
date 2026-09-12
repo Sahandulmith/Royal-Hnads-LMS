@@ -12,8 +12,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: 'student1@lms.com');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   DeviceInformation? _deviceInfo;
@@ -78,17 +78,18 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _setPresetAccount(String email) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = 'password123';
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSubColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final inputBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: scaffoldBg,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -101,46 +102,52 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Logo & Header
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6366F1).withAlpha(100),
+                          color: const Color(0xFF6366F1).withAlpha(40),
                           blurRadius: 20,
-                          offset: const Offset(0, 10),
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.lock_person_rounded,
-                      size: 48,
-                      color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.asset(
+                        'assets/images/royal hands.png',
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.lock_person_rounded,
+                          size: 48,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Secure LMS Portal',
+                Text(
+                  'Royal Hands LMS',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Recorded Lesson Streaming & Access Control',
+                Text(
+                  'Recorded Lesson Streaming',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: textSubColor,
                     fontSize: 14,
                   ),
                 ),
@@ -150,9 +157,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: cardBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF334155)),
+                    border: Border.all(color: borderColor),
+                    boxShadow: isDark
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withAlpha(10),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                   ),
                   child: Row(
                     children: [
@@ -162,10 +178,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Device Binding Security Active',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: textColor,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -175,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               _deviceInfo != null
                                   ? '${_deviceInfo!.model} • ${_deviceInfo!.osVersion}'
                                   : 'Detecting device Hardware ID...',
-                              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                              style: TextStyle(color: textSubColor, fontSize: 11),
                             ),
                           ],
                         ),
@@ -186,55 +202,63 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 28),
 
                 // Login Form
-                const Text(
-                  'Email / Username',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                Text(
+                  'Email',
+                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: textColor),
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF94A3B8)),
-                    hintText: 'Enter student or admin email',
-                    hintStyle: const TextStyle(color: Colors.white38),
+                    prefixIcon: Icon(Icons.email_outlined, color: textSubColor),
+                    hintText: 'Enter student email',
+                    hintStyle: TextStyle(color: textSubColor.withAlpha(140)),
                     filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(
+                    fillColor: inputBg,
+                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF6366F1)),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                const Text(
+                Text(
                   'Password',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: textColor),
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF94A3B8)),
+                    prefixIcon: Icon(Icons.lock_outline, color: textSubColor),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF94A3B8),
+                        color: textSubColor,
                       ),
                       onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
                     hintText: 'Enter password',
-                    hintStyle: const TextStyle(color: Colors.white38),
+                    hintStyle: TextStyle(color: textSubColor.withAlpha(140)),
                     filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(
+                    fillColor: inputBg,
+                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF6366F1)),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
@@ -256,74 +280,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                         )
                       : const Text(
-                          'Secure Sign In',
+                          'Sign In',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
-                ),
-
-                const SizedBox(height: 36),
-
-                // Quick Demo Account Selection Shortcuts
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B).withAlpha(150),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF334155)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.touch_app_outlined, color: Colors.amberAccent, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Quick Demo Accounts:',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildAccountChip('Student 1 (Bound)', 'student1@lms.com', Colors.indigoAccent),
-                          _buildAccountChip('Student 2 (New Device)', 'student2@lms.com', Colors.tealAccent),
-                          _buildAccountChip('Student 3 (Inactive)', 'student3@lms.com', Colors.redAccent),
-                          _buildAccountChip('Admin Dashboard', 'admin@lms.com', Colors.purpleAccent),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccountChip(String label, String email, Color accentColor) {
-    return InkWell(
-      onTap: () => _setPresetAccount(email),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: accentColor.withAlpha(25),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: accentColor.withAlpha(80)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.w600),
         ),
       ),
     );
