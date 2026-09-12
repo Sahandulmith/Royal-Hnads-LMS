@@ -2,7 +2,7 @@ name: royal_lms
 description: Royal LMS - A secure Learning Management System Flutter Application with Firebase backend, YouTube secure video player, view limits, device binding, and watch history analytics.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -15,6 +15,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
   flutter_animate: ^4.5.0
+  lottie: ^3.1.0
 
   # Firebase Suite
   firebase_core: ^2.27.0
@@ -25,23 +26,22 @@ dependencies:
   device_info_plus: ^10.1.0
   flutter_secure_storage: ^9.0.0
   screen_protector: ^1.4.1
+  permission_handler: ^11.3.1
   uuid: ^4.3.3
 
   # Video Streaming & Webview
   youtube_player_flutter: ^9.0.1
-  pointer_interceptor: ^0.9.3+4
-
-dependency_overrides:
   flutter_inappwebview: ^6.0.0
+  pointer_interceptor: ^0.9.3+4
 
   # State Management & Helpers
   provider: ^6.1.1
   intl: ^0.19.0
   http: ^1.2.0
   package_info_plus: ^8.0.0
+  path_provider: ^2.1.2
   url_launcher: ^6.2.5
-  ota_update: ^6.0.0
-
+  open_filex: ^4.5.0
 
 dev_dependencies:
   flutter_test:
@@ -63,4 +63,4 @@ flutter:
 
   assets:
     - assets/images/
-
+    - assets/animation/

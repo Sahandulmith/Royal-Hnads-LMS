@@ -11,6 +11,7 @@ import '../../models/video.dart';
 import '../../models/user_video_permission.dart';
 import '../../models/device_request.dart';
 import '../../models/watch_session.dart';
+import '../../models/live_class.dart';
 import 'device_service.dart';
 
 class LoginResult {
@@ -54,6 +55,7 @@ class LmsRepository extends ChangeNotifier {
   final List<UserVideoPermission> _permissions = [];
   final List<DeviceRequest> _deviceRequests = [];
   final List<WatchSession> _watchSessions = [];
+  final List<LiveClass> _liveClasses = [];
 
   final List<StreamSubscription> _subscriptions = [];
   bool _isInitialized = false;
@@ -194,6 +196,17 @@ class LmsRepository extends ChangeNotifier {
         }
         notifyListeners();
       }, onError: (e) => debugPrint('Watch sessions stream error: $e')),
+    );
+
+    // 7. Live Classes stream
+    _subscriptions.add(
+      _firestore.collection('live_classes').snapshots().listen((snapshot) {
+        _liveClasses.clear();
+        for (var doc in snapshot.docs) {
+          _liveClasses.add(LiveClass.fromMap(doc.data(), doc.id));
+        }
+        notifyListeners();
+      }, onError: (e) => debugPrint('Live classes stream error: $e')),
     );
   }
 
@@ -871,6 +884,72 @@ class LmsRepository extends ChangeNotifier {
 
   List<WatchSession> getAllWatchSessions() {
     return List.from(_watchSessions)..sort((a, b) => b.startTime.compareTo(a.startTime));
+  }
+
+  // --- LIVE CLASSROOM MANAGEMENT ---
+
+  List<LiveClass> getLiveClasses() => List.from(_liveClasses);
+
+  LiveClass? getActiveLiveClass() {
+    final activeList = _liveClasses.where((l) => l.isActive).toList();
+    if (activeList.isNotEmpty) {
+      return activeList.first;
+    }
+    return null;
+  }
+
+  Future<void> createOrUpdateLiveClass({
+    String? id,
+    required String title,
+    required String description,
+    required String classUrl,
+    required String platform,
+    required bool isActive,
+    DateTime? scheduledAt,
+  }) async {
+    final classId = id ?? 'live-${const Uuid().v4().substring(0, 6)}';
+    final liveClass = LiveClass(
+      id: classId,
+      title: title.trim(),
+      description: description.trim(),
+      classUrl: classUrl.trim(),
+      platform: platform.trim().toLowerCase(),
+      isActive: isActive,
+      scheduledAt: scheduledAt,
+      createdAt: DateTime.now(),
+    );
+
+    if (isActive) {
+      final batch = _firestore.batch();
+      for (var lc in _liveClasses) {
+        if (lc.id != classId && lc.isActive) {
+          batch.update(_firestore.collection('live_classes').doc(lc.id), {'is_active': false});
+        }
+      }
+      batch.set(_firestore.collection('live_classes').doc(classId), liveClass.toMap());
+      await batch.commit();
+    } else {
+      await _firestore.collection('live_classes').doc(classId).set(liveClass.toMap());
+    }
+  }
+
+  Future<void> toggleLiveClassActive(String id, bool isActive) async {
+    if (isActive) {
+      final batch = _firestore.batch();
+      for (var lc in _liveClasses) {
+        if (lc.id != id && lc.isActive) {
+          batch.update(_firestore.collection('live_classes').doc(lc.id), {'is_active': false});
+        }
+      }
+      batch.update(_firestore.collection('live_classes').doc(id), {'is_active': true});
+      await batch.commit();
+    } else {
+      await _firestore.collection('live_classes').doc(id).update({'is_active': false});
+    }
+  }
+
+  Future<void> deleteLiveClass(String id) async {
+    await _firestore.collection('live_classes').doc(id).delete();
   }
 
   @override

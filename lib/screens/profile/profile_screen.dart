@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/services/lms_repository.dart';
 import '../../core/services/update_service.dart';
 import '../widgets/update_dialog.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -33,8 +34,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted && info.version.isNotEmpty) {
+        setState(() => _currentAppVersion = info.version);
+        return;
+      }
+    } catch (_) {}
     final ver = await UpdateService.getCurrentAppVersion();
-    if (mounted) {
+    if (mounted && ver.isNotEmpty) {
       setState(() => _currentAppVersion = ver);
     }
   }
@@ -49,7 +57,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       UpdateAvailableDialog.show(context, updateInfo);
     } else {
       _showSnackBar(
-        'You are on the latest version of Royal Hands (v${updateInfo.currentVersion}). No update required.',
+        updateInfo.currentVersion.isNotEmpty
+            ? 'You are on the latest version of Royal Hands (v${updateInfo.currentVersion}). No update required.'
+            : 'You are on the latest version of Royal Hands. No update required.',
         const Color(0xFF10B981),
       );
     }

@@ -9,6 +9,7 @@ import '../../models/video.dart';
 import '../../models/course.dart';
 import '../../models/device_request.dart';
 import '../../models/watch_session.dart';
+import '../../models/live_class.dart';
 import '../profile/profile_screen.dart';
 import '../widgets/curved_bottom_nav_bar.dart';
 
@@ -26,6 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final List<CurvedNavItem> _adminNavItems = const [
     CurvedNavItem(icon: Icons.people_alt_rounded, label: 'Students'),
     CurvedNavItem(icon: Icons.video_collection_rounded, label: 'Videos'),
+    CurvedNavItem(icon: Icons.live_tv_rounded, label: 'Live Class'),
     CurvedNavItem(icon: Icons.phonelink_setup_rounded, label: 'Limits'),
     CurvedNavItem(icon: Icons.analytics_rounded, label: 'Analytics'),
     CurvedNavItem(icon: Icons.person_rounded, label: 'Profile'),
@@ -94,6 +96,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               children: [
                 _buildStudentsTab(context, repo, students),
                 _buildVideosTab(context, repo, videos),
+                _buildLiveClassTab(context, repo),
                 _buildLimitsAndDeviceRequestsTab(context, repo, students, videos, pendingRequests),
                 _buildAnalyticsTab(context, watchSessions),
                 const ProfileScreen(isEmbedded: true),
@@ -1738,6 +1741,304 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
         );
       },
+    );
+  }
+
+  // --- TAB 2: LIVE CLASSROOM MANAGEMENT ---
+  Widget _buildLiveClassTab(BuildContext context, LmsRepository repo) {
+    final liveClasses = repo.getLiveClasses();
+    final activeLive = repo.getActiveLiveClass();
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showLiveClassDialog(context, repo),
+          backgroundColor: const Color(0xFFDC2626),
+          icon: const Icon(Icons.add_to_queue_rounded, color: Colors.white),
+          label: const Text('Add / Manage Live Class', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 120),
+        children: [
+          // Header Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withAlpha(50),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.live_tv_rounded, color: Colors.white, size: 30),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Live Classroom Manager',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        activeLive != null
+                            ? '🔴 Currently Live: ${activeLive.title}'
+                            : 'No Live Class currently active for students.',
+                        style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          if (liveClasses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _borderColor),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.tv_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No Live Class Links Created',
+                    style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Add a Zoom or YouTube Live link so students can join live classroom lectures directly inside the app.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _showLiveClassDialog(context, repo),
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text('Add Live Class Link'),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...liveClasses.map((lc) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: lc.isActive ? Colors.redAccent : _borderColor,
+                    width: lc.isActive ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: lc.isActive ? Colors.redAccent.withAlpha(30) : _inputBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.videocam_rounded,
+                        color: lc.isActive ? Colors.redAccent : _textSubColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  lc.title,
+                                  style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: lc.isActive ? Colors.redAccent.withAlpha(30) : Colors.grey.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  lc.isActive ? '🔴 LIVE NOW' : 'OFFLINE',
+                                  style: TextStyle(
+                                    color: lc.isActive ? Colors.redAccent : Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Platform: ${lc.platform.toUpperCase()} • Link: ${lc.classUrl}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: lc.isActive,
+                      activeColor: Colors.redAccent,
+                      onChanged: (val) => repo.toggleLiveClassActive(lc.id, val),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Color(0xFF6366F1), size: 20),
+                      onPressed: () => _showLiveClassDialog(context, repo, existing: lc),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      onPressed: () => repo.deleteLiveClass(lc.id),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  void _showLiveClassDialog(BuildContext context, LmsRepository repo, {LiveClass? existing}) {
+    final titleCtrl = TextEditingController(text: existing?.title ?? '');
+    final descCtrl = TextEditingController(text: existing?.description ?? '');
+    final urlCtrl = TextEditingController(text: existing?.classUrl ?? '');
+    String platform = existing?.platform ?? 'zoom';
+    bool isActive = existing?.isActive ?? true;
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Text(existing == null ? 'Add Live Class Link' : 'Edit Live Class Link', style: const TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Class Title',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'e.g. Physics Chapter 4 Live Lecture',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Description (Optional)',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: urlCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Zoom Link / YouTube Live Link / Web Link',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'https://zoom.us/j/... or https://youtube.com/...',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Text('Platform:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    DropdownButton<String>(
+                      value: platform,
+                      dropdownColor: const Color(0xFF1E293B),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      items: const [
+                        DropdownMenuItem(value: 'zoom', child: Text('Zoom')),
+                        DropdownMenuItem(value: 'youtube', child: Text('YouTube Live')),
+                        DropdownMenuItem(value: 'web', child: Text('Web Stream')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => platform = val);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  title: const Text('Start Live Stream Now', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  subtitle: const Text('Shows Live Classroom Join button to students', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: isActive,
+                  activeColor: Colors.redAccent,
+                  onChanged: (val) => setDialogState(() => isActive = val),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              onPressed: () {
+                if (titleCtrl.text.isNotEmpty && urlCtrl.text.isNotEmpty) {
+                  repo.createOrUpdateLiveClass(
+                    id: existing?.id,
+                    title: titleCtrl.text,
+                    description: descCtrl.text,
+                    classUrl: urlCtrl.text,
+                    platform: platform,
+                    isActive: isActive,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(existing == null ? 'Publish Live Class' : 'Save Changes'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

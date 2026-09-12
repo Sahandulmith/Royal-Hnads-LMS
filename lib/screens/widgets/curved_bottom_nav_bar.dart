@@ -67,7 +67,7 @@ class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
 
   @override
   Widget build(BuildContext context) {
-    final double barHeight = 62.0;
+    final double barHeight = 60.0;
     final int count = widget.items.length;
 
     return AnimatedBuilder(
@@ -83,18 +83,21 @@ class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
                 _previousIndex + (widget.selectedIndex - _previousIndex) * _anim.value;
 
             final double rawCenterX = (animatedIndex + 0.5) * itemWidth;
-            // Clamp centerX so cutout dip and bubble stay comfortably within bar bounds
-            const double minCenterX = 40.0;
-            final double maxCenterX = totalWidth - 40.0;
-            final double safeCenterX = rawCenterX.clamp(minCenterX, maxCenterX);
+
+            const double radius = 22.0;
+            const double shoulder = 10.0;
+            const double cornerRadius = 18.0;
+            final double minAllowed = cornerRadius + radius + shoulder + 2.0; // 52.0
+            final double maxAllowed = totalWidth - minAllowed;
+            final double safeCenterX = rawCenterX.clamp(minAllowed, maxAllowed);
 
             return Container(
-              height: barHeight + 20,
+              height: barHeight + 16,
               margin: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // 1. Curved Background Bar
+                  // 1. Curved Background Bar Card
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -103,30 +106,30 @@ class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
                     child: PhysicalShape(
                       clipper: CurvedNavClipper(centerX: safeCenterX),
                       color: widget.backgroundColor,
-                      elevation: 10,
-                      shadowColor: Colors.black.withAlpha(90),
+                      elevation: 8,
+                      shadowColor: Colors.black.withAlpha(70),
                       child: Container(),
                     ),
                   ),
 
                   // 2. Floating Active Icon Circle Bubble
                   Positioned(
-                    left: safeCenterX - 25.0,
-                    top: 2,
+                    left: safeCenterX - 23.0,
+                    top: 4,
                     child: GestureDetector(
                       onTap: () => widget.onTap(widget.selectedIndex),
                       child: Container(
-                        width: 50,
-                        height: 50,
+                        width: 46,
+                        height: 46,
                         decoration: BoxDecoration(
                           color: widget.backgroundColor,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: widget.activeColor.withAlpha(120),
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 4),
+                              color: widget.activeColor.withAlpha(100),
+                              blurRadius: 8,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -134,7 +137,7 @@ class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
                           child: Icon(
                             widget.items[widget.selectedIndex].icon,
                             color: widget.activeColor,
-                            size: 26,
+                            size: 24,
                           ),
                         ),
                       ),
@@ -181,7 +184,7 @@ class _CurvedBottomNavBarState extends State<CurvedBottomNavBar>
                                         : FontWeight.w500,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                               ],
                             ),
                           ),
@@ -207,43 +210,46 @@ class CurvedNavClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
-    const double radius = 28.0;
-    const double shoulder = 12.0;
+    const double radius = 22.0;
+    const double shoulder = 10.0;
+    const double cornerRadius = 18.0;
 
-    final double safeCenterX = centerX.clamp(radius + shoulder + 4, size.width - (radius + shoulder + 4));
+    final double minAllowed = cornerRadius + radius + shoulder + 2.0; // 52.0
+    final double maxAllowed = size.width - minAllowed;
+    final double safeCenterX = centerX.clamp(minAllowed, maxAllowed);
 
-    path.moveTo(0, 20);
-    path.quadraticBezierTo(0, 0, 20, 0);
+    path.moveTo(0, cornerRadius);
+    path.quadraticBezierTo(0, 0, cornerRadius, 0);
 
     // Left shoulder before cutout dip
     final double leftStart = safeCenterX - radius - shoulder;
     path.lineTo(leftStart, 0);
 
-    // Cubic dip into cutout
+    // Smooth cubic dip into cutout
     path.cubicTo(
-      safeCenterX - radius + 4, 0,
-      safeCenterX - radius * 0.7, 24,
-      safeCenterX, 24,
+      safeCenterX - radius + 2, 0,
+      safeCenterX - radius * 0.65, 20,
+      safeCenterX, 20,
     );
 
-    // Cubic rise out of cutout
+    // Smooth cubic rise out of cutout
     path.cubicTo(
-      safeCenterX + radius * 0.7, 24,
-      safeCenterX + radius - 4, 0,
+      safeCenterX + radius * 0.65, 20,
+      safeCenterX + radius - 2, 0,
       safeCenterX + radius + shoulder, 0,
     );
 
-    // Top right edge and corner
-    path.lineTo(size.width - 20, 0);
-    path.quadraticBezierTo(size.width, 0, size.width, 20);
+    // Right shoulder to top-right corner
+    path.lineTo(size.width - cornerRadius, 0);
+    path.quadraticBezierTo(size.width, 0, size.width, cornerRadius);
 
-    // Right edge and bottom right corner
-    path.lineTo(size.width, size.height - 20);
-    path.quadraticBezierTo(size.width, size.height, size.width - 20, size.height);
+    // Right edge and bottom-right corner
+    path.lineTo(size.width, size.height - cornerRadius);
+    path.quadraticBezierTo(size.width, size.height, size.width - cornerRadius, size.height);
 
-    // Bottom edge and bottom left corner
-    path.lineTo(20, size.height);
-    path.quadraticBezierTo(0, size.height, 0, size.height - 20);
+    // Bottom edge and bottom-left corner
+    path.lineTo(cornerRadius, size.height);
+    path.quadraticBezierTo(0, size.height, 0, size.height - cornerRadius);
 
     // Close path
     path.close();
@@ -255,4 +261,3 @@ class CurvedNavClipper extends CustomClipper<Path> {
     return oldDelegate.centerX != centerX;
   }
 }
-

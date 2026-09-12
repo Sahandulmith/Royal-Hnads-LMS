@@ -31,6 +31,92 @@
 
   <title>Royal Hands</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Prevent text selection, drag & image copying on Web */
+    body, html {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    .security-blur-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #0f172a;
+      z-index: 9999999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+  </style>
+  <script>
+    window.flutter_inappwebview = window.flutter_inappwebview || {};
+    window.flutter_inappwebview.nativeCommunication = window.flutter_inappwebview.nativeCommunication || function() {};
+    window.flutter_inappwebview.callHandler = window.flutter_inappwebview.callHandler || function() {};
+
+    // 1. Block right-click menu
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    });
+
+    // 2. Block shortcut keys (PrintScreen, F12, Ctrl+Shift+I, Ctrl+P, Ctrl+S)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'PrintScreen' || e.keyCode === 44 ||
+          (e.ctrlKey && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S' || e.key === 'u' || e.key === 'U')) ||
+          (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'C' || e.key === 'c' || e.key === 'J' || e.key === 'j')) ||
+          e.key === 'F12') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(''); // Clear clipboard if PrintScreen was attempted
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    });
+
+    // 3. Tab Visibility & Window Blur Security Guard
+    var securityShield = null;
+
+    function hideProtectedContent() {
+      if (!securityShield) {
+        securityShield = document.createElement('div');
+        securityShield.className = 'security-blur-overlay';
+        securityShield.innerHTML = '<div style="font-size:48px;margin-bottom:16px;">🛡️</div><h2 style="font-size:22px;margin:0 0 8px 0;font-weight:bold;">Protected Content Hidden</h2><p style="color:#94a3b8;font-size:14px;margin:0;">Screen capture or window focus change detected. Return to tab to resume.</p>';
+        document.body.appendChild(securityShield);
+      }
+    }
+
+    function showProtectedContent() {
+      if (securityShield) {
+        securityShield.remove();
+        securityShield = null;
+      }
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') {
+        hideProtectedContent();
+      } else {
+        showProtectedContent();
+      }
+    });
+
+    window.addEventListener('blur', function() {
+      hideProtectedContent();
+    });
+
+    window.addEventListener('focus', function() {
+      showProtectedContent();
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

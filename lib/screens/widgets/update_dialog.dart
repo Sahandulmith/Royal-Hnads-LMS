@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:ota_update/ota_update.dart';
 import '../../core/services/update_service.dart';
 
 class UpdateAvailableDialog extends StatefulWidget {
@@ -29,129 +28,41 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
   String _statusText = 'Preparing download...';
   bool _hasError = false;
   String? _errorMessage;
-  StreamSubscription<OtaEvent>? _otaSubscription;
-
-  @override
-  void dispose() {
-    _otaSubscription?.cancel();
-    super.dispose();
-  }
 
   Future<void> _startInAppUpdate() async {
-    final rawApkUrl = widget.updateInfo.apkDownloadUrl ?? widget.updateInfo.updateUrl;
+    final targetUrl = widget.updateInfo.apkDownloadUrl ?? widget.updateInfo.updateUrl;
 
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0;
-      _statusText = 'Resolving download package...';
+      _statusText = 'Downloading update package... 0%';
       _hasError = false;
       _errorMessage = null;
     });
 
-    final apkUrl = await UpdateService.resolveDirectApkUrl(rawApkUrl);
-
-    if (!mounted) return;
-
-    // If URL is not an APK or direct download, fallback directly to external browser launcher
-    final isApkOrDirect = apkUrl.toLowerCase().contains('.apk') ||
-        apkUrl.contains('amazonaws.com') ||
-        apkUrl.contains('firebasestorage') ||
-        apkUrl.contains('github.com/releases/download');
-
-    if (!isApkOrDirect) {
-      _fallbackToBrowserDownload(apkUrl);
-      return;
-    }
-
-    setState(() {
-      _statusText = 'Starting in-app download...';
-    });
-
-    // Timeout check if download stays at 0% for too long
-    Timer? timeoutTimer;
-    timeoutTimer = Timer(const Duration(seconds: 18), () {
-      if (mounted && _isDownloading && _downloadProgress == 0 && !_hasError) {
-        debugPrint('OTA Update timed out at 0%. Falling back to browser download.');
+    await UpdateService.downloadAndInstallApk(
+      targetUrl,
+      onProgress: (double progress) {
+        if (!mounted) return;
+        final pct = (progress * 100).round().clamp(0, 100);
+        setState(() {
+          _downloadProgress = pct;
+          if (pct >= 100) {
+            _statusText = 'Launching Android Package Installer...';
+          } else {
+            _statusText = 'Downloading update package... $pct%';
+          }
+        });
+      },
+      onError: (String error) {
+        if (!mounted) return;
         setState(() {
           _hasError = true;
-          _errorMessage = 'In-app download slow/unresponsive. Opening browser...';
+          _errorMessage = error;
+          _statusText = 'Download failed.';
         });
-        _fallbackToBrowserDownload(apkUrl);
-      }
-    });
-
-    try {
-      _otaSubscription = UpdateService.downloadAndInstallOTA(apkUrl).listen(
-        (OtaEvent event) {
-          if (!mounted) return;
-
-          switch (event.status) {
-            case OtaStatus.DOWNLOADING:
-              final parsed = int.tryParse(event.value ?? '0') ?? 0;
-              setState(() {
-                _downloadProgress = parsed.clamp(0, 100);
-                _statusText = 'Downloading update package... $_downloadProgress%';
-              });
-              if (_downloadProgress > 0) {
-                timeoutTimer?.cancel();
-              }
-              break;
-            case OtaStatus.INSTALLING:
-              timeoutTimer?.cancel();
-              setState(() {
-                _downloadProgress = 100;
-                _statusText = 'Launching Android Package Installer...';
-              });
-              break;
-            case OtaStatus.ALREADY_RUNNING_ERROR:
-              setState(() {
-                _statusText = 'Download already in progress...';
-              });
-              break;
-            case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
-              timeoutTimer?.cancel();
-              setState(() {
-                _hasError = true;
-                _errorMessage = 'Permission denied to install unknown apps.';
-                _statusText = 'Installation permission required.';
-              });
-              break;
-            case OtaStatus.CHECKSUM_ERROR:
-            case OtaStatus.INTERNAL_ERROR:
-            case OtaStatus.DOWNLOAD_ERROR:
-            default:
-              timeoutTimer?.cancel();
-              setState(() {
-                _hasError = true;
-                _errorMessage = 'In-app download failed. Opening browser download...';
-              });
-              _fallbackToBrowserDownload(apkUrl);
-              break;
-          }
-        },
-        onError: (dynamic error) {
-          timeoutTimer?.cancel();
-          if (!mounted) return;
-          debugPrint('OTA Update error: $error');
-          setState(() {
-            _hasError = true;
-            _errorMessage = 'In-app update encountered an issue.';
-          });
-          _fallbackToBrowserDownload(apkUrl);
-        },
-      );
-    } catch (e) {
-      timeoutTimer?.cancel();
-      debugPrint('Failed to initialize OTA download stream: $e');
-      _fallbackToBrowserDownload(apkUrl);
-    }
-  }
-
-  Future<void> _fallbackToBrowserDownload(String url) async {
-    await UpdateService.launchUpdateUrl(url);
-    if (mounted) {
-      Navigator.pop(context);
-    }
+      },
+    );
   }
 
   @override
@@ -160,6 +71,9 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
     final dialogBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final textSubColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    final cleanCurrentVersion = widget.updateInfo.currentVersion.split('+')[0];
+    final cleanLatestVersion = widget.updateInfo.latestVersion.split('+')[0];
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -204,7 +118,6 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Background decorative shapes
                       Positioned(
                         top: 20,
                         left: 30,
@@ -229,8 +142,6 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                           ),
                         ),
                       ),
-
-                      // Graphic Icon
                       Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -288,7 +199,7 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Version Comparison Badge
+                      // Version Comparison Badge (Clean v1.0.0 -> v1.0.1 format)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
@@ -299,20 +210,22 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              'v${widget.updateInfo.currentVersion}',
-                              style: TextStyle(
-                                color: textSubColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            if (cleanCurrentVersion.isNotEmpty && cleanCurrentVersion != 'Unknown') ...[
+                              Text(
+                                'v$cleanCurrentVersion',
+                                style: TextStyle(
+                                  color: textSubColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6),
-                              child: Icon(Icons.arrow_forward_rounded, size: 12, color: Color(0xFF6366F1)),
-                            ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6),
+                                child: Icon(Icons.arrow_forward_rounded, size: 12, color: Color(0xFF6366F1)),
+                              ),
+                            ],
                             Text(
-                              'v${widget.updateInfo.latestVersion}',
+                              'v$cleanLatestVersion',
                               style: const TextStyle(
                                 color: Color(0xFF6366F1),
                                 fontSize: 12,
@@ -346,8 +259,8 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                                 const SizedBox(width: 8),
                                 Text(
                                   '$_downloadProgress%',
-                                  style: const TextStyle(
-                                    color: Color(0xFF6366F1),
+                                  style: TextStyle(
+                                    color: _hasError ? Colors.redAccent : const Color(0xFF6366F1),
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -361,23 +274,65 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
                                 value: _downloadProgress / 100.0,
                                 minHeight: 10,
                                 backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF84CC16)),
+                                valueColor: AlwaysStoppedAnimation<Color>(_hasError ? Colors.redAccent : const Color(0xFF84CC16)),
                               ),
                             ),
                             if (_errorMessage != null) ...[
-                              const SizedBox(height: 10),
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.redAccent.withAlpha(80)),
+                                ),
+                                child: Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.redAccent, fontSize: 11, height: 1.3),
+                                ),
                               ),
                             ],
-                            const SizedBox(height: 16),
-                            TextButton.icon(
-                              onPressed: () => _fallbackToBrowserDownload(widget.updateInfo.apkDownloadUrl ?? widget.updateInfo.updateUrl),
-                              icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                              label: const Text('Open Browser Download Instead', style: TextStyle(fontSize: 12)),
-                            ),
+                            if (_hasError) ...[
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 44,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _startInAppUpdate,
+                                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                                        label: const Text('RETRY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF6366F1),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 44,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                        },
+                                        icon: const Icon(Icons.close_rounded, size: 16),
+                                        label: const Text('CLOSE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: textSubColor,
+                                          side: BorderSide(color: textSubColor.withAlpha(80)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ] else ...[
@@ -438,7 +393,6 @@ class _UpdateAvailableDialogState extends State<UpdateAvailableDialog> {
             right: -12,
             child: GestureDetector(
               onTap: () {
-                _otaSubscription?.cancel();
                 Navigator.pop(context);
               },
               child: Container(

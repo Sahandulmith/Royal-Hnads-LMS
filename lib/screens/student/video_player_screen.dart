@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
@@ -7,6 +9,7 @@ import '../../core/services/lms_repository.dart';
 import '../../core/services/security_service.dart';
 import '../../models/video.dart';
 import '../../models/user_video_permission.dart';
+import '../widgets/web_youtube_player.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final Video video;
@@ -23,6 +26,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _isLoadingPermission = true;
   bool _isLimitReached = false;
   bool _isScreenRecordingDetected = false;
+  bool _isFullScreen = false;
 
   // Timers
   late DateTime _sessionStartTime;
@@ -47,6 +51,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Future<void> _enableAntiScreenRecord() async {
+    if (kIsWeb) return;
     await SecurityService.enableSecureScreen();
 
     // Periodically check if a screen recording app is actively running
@@ -94,21 +99,25 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   void _initYoutubePlayer() {
-    _youtubeController = YoutubePlayerController(
-      initialVideoId: widget.video.youtubeId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        disableDragSeek: true,
-        enableCaption: false,
-        hideControls: true, // Hides native YouTube UI completely
-        controlsVisibleAtStart: false,
-      ),
-    )..addListener(_onPlayerStateChange);
+    if (!kIsWeb) {
+      _youtubeController = YoutubePlayerController(
+        initialVideoId: widget.video.youtubeId,
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
+          mute: false,
+          disableDragSeek: true,
+          enableCaption: false,
+          hideControls: true, // Hides native YouTube UI completely
+          controlsVisibleAtStart: false,
+        ),
+      )..addListener(_onPlayerStateChange);
+    } else {
+      _isPlaying = true;
+    }
 
     // Watch duration timer
     _sessionWatchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_isPlaying && !_isScreenRecordingDetected) {
+      if ((_isPlaying || kIsWeb) && !_isScreenRecordingDetected) {
         _totalWatchedSeconds++;
       }
     });
@@ -157,6 +166,25 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+  void _toggleFullScreen() {
+    setState(() {
+      _isFullScreen = !_isFullScreen;
+    });
+
+    if (_isFullScreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+    }
+  }
+
   Future<void> _recordWatchSession({required bool isCompleted}) async {
     final repo = Provider.of<LmsRepository>(context, listen: false);
     final endTime = DateTime.now();
@@ -180,10 +208,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       _recordWatchSession(isCompleted: false);
     }
 
-    if (!_isLimitReached) {
+    if (!_isLimitReached && !kIsWeb) {
       _youtubeController.removeListener(_onPlayerStateChange);
       _youtubeController.dispose();
     }
+
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
 
     SecurityService.disableSecureScreen();
     super.dispose();
@@ -361,28 +394,35 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           Center(
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: YoutubePlayer(
-                controller: _youtubeController,
-                showVideoProgressIndicator: false,
-              ),
+              child: kIsWeb
+                  ? getWebYoutubePlayer(widget.video.youtubeId)
+                  : YoutubePlayer(
+                      controller: _youtubeController,
+                      showVideoProgressIndicator: false,
+                    ),
             ),
           ),
 
           // 2. Shielding Overlays (Blocking touch events on YouTube Logo & Title areas)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 60,
-            child: Container(color: Colors.transparent),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            width: 120,
-            height: 60,
-            child: Container(color: Colors.transparent),
-          ),
+          if (!kIsWeb) ...[
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 60,
+              child: Container(color: Colors.transparent),
+            ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              width: 120,
+              height: 60,
+              child: Container(color: Colors.transparent),
+            ),
+          ],
+
+          // Dynamic Anti-Piracy Watermark Overlay
+          _buildDynamicWatermark(),
 
           // 3. Custom Player Controls Overlay
           if (_showControls)
@@ -455,104 +495,149 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 ],
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-
-                    // Center Transport Controls (10s Rewind, Play/Pause, 10s Forward)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          iconSize: 44,
-                          icon: const Icon(Icons.replay_10_rounded, color: Colors.white),
-                          onPressed: () {
-                            final current = _youtubeController.value.position;
-                            _youtubeController.seekTo(current - const Duration(seconds: 10));
-                            _startHideControlsTimer();
-                          },
-                        ),
-                        const SizedBox(width: 24),
-                        GestureDetector(
-                          onTap: () {
-                            if (_isPlaying) {
-                              _youtubeController.pause();
-                            } else {
-                              _youtubeController.play();
-                            }
-                            _startHideControlsTimer();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF6366F1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                              size: 44,
+                          IconButton(
+                            icon: Icon(
+                              _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
                               color: Colors.white,
+                              size: 26,
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-                        IconButton(
-                          iconSize: 44,
-                          icon: const Icon(Icons.forward_10_rounded, color: Colors.white),
-                          onPressed: () {
-                            final current = _youtubeController.value.position;
-                            _youtubeController.seekTo(current + const Duration(seconds: 10));
-                            _startHideControlsTimer();
-                          },
-                        ),
-                      ],
-                    ),
-
-                    // Bottom Bar (Progress slider & Timestamps)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                _formatDuration(_currentPosition),
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                              Expanded(
-                                child: Slider(
-                                  value: _currentPosition.inSeconds.toDouble().clamp(
-                                        0.0,
-                                        _totalDuration.inSeconds > 0
-                                            ? _totalDuration.inSeconds.toDouble()
-                                            : 1.0,
-                                      ),
-                                  min: 0.0,
-                                  max: _totalDuration.inSeconds > 0
-                                      ? _totalDuration.inSeconds.toDouble()
-                                      : 1.0,
-                                  activeColor: const Color(0xFF6366F1),
-                                  inactiveColor: Colors.white24,
-                                  onChanged: (val) {
-                                    _youtubeController.seekTo(Duration(seconds: val.toInt()));
-                                    _startHideControlsTimer();
-                                  },
-                                ),
-                              ),
-                              Text(
-                                _formatDuration(_totalDuration),
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
+                            onPressed: _toggleFullScreen,
+                            tooltip: _isFullScreen ? 'Exit Fullscreen' : 'Fullscreen Rotation',
                           ),
                         ],
                       ),
                     ),
+
+                    // Center Transport Controls (10s Rewind, Play/Pause, 10s Forward) - Mobile Only
+                    if (!kIsWeb) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            iconSize: 44,
+                            icon: const Icon(Icons.replay_10_rounded, color: Colors.white),
+                            onPressed: () {
+                              final current = _youtubeController.value.position;
+                              _youtubeController.seekTo(current - const Duration(seconds: 10));
+                              _startHideControlsTimer();
+                            },
+                          ),
+                          const SizedBox(width: 24),
+                          GestureDetector(
+                            onTap: () {
+                              if (_isPlaying) {
+                                _youtubeController.pause();
+                              } else {
+                                _youtubeController.play();
+                              }
+                              _startHideControlsTimer();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF6366F1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                size: 44,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          IconButton(
+                            iconSize: 44,
+                            icon: const Icon(Icons.forward_10_rounded, color: Colors.white),
+                            onPressed: () {
+                              final current = _youtubeController.value.position;
+                              _youtubeController.seekTo(current + const Duration(seconds: 10));
+                              _startHideControlsTimer();
+                            },
+                          ),
+                        ],
+                      ),
+
+                      // Bottom Bar (Progress slider & Timestamps)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _formatDuration(_currentPosition),
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                                Expanded(
+                                  child: Slider(
+                                    value: _currentPosition.inSeconds.toDouble().clamp(
+                                          0.0,
+                                          _totalDuration.inSeconds > 0
+                                              ? _totalDuration.inSeconds.toDouble()
+                                              : 1.0,
+                                        ),
+                                    min: 0.0,
+                                    max: _totalDuration.inSeconds > 0
+                                        ? _totalDuration.inSeconds.toDouble()
+                                        : 1.0,
+                                    activeColor: const Color(0xFF6366F1),
+                                    inactiveColor: Colors.white24,
+                                    onChanged: (val) {
+                                      _youtubeController.seekTo(Duration(seconds: val.toInt()));
+                                      _startHideControlsTimer();
+                                    },
+                                  ),
+                                ),
+                                Text(
+                                  _formatDuration(_totalDuration),
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDynamicWatermark() {
+    final repo = Provider.of<LmsRepository>(context, listen: false);
+    final email = repo.currentUser?.email ?? 'Protected Account';
+    final name = repo.currentUser?.name ?? 'Royal LMS';
+
+    return IgnorePointer(
+      child: Center(
+        child: Opacity(
+          opacity: 0.22,
+          child: Transform.rotate(
+            angle: -0.15,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(140),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white54),
+              ),
+              child: Text(
+                'PROHIBITED RECORDING • $name ($email)',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

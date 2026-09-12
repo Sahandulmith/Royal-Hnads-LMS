@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -127,6 +128,7 @@ class _RootRoleGuardState extends State<RootRoleGuard> {
   }
 
   void _triggerAutoUpdateCheck() {
+    if (kIsWeb) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (_hasCheckedUpdate) return;
       _hasCheckedUpdate = true;
