@@ -117,6 +117,21 @@ class LmsRepository extends ChangeNotifier {
     await _storage.write(key: _themeModeKey, value: val);
   }
 
+  Future<bool> hasSeenOnboarding(String studentUid) async {
+    try {
+      final val = await _storage.read(key: 'has_seen_onboarding_$studentUid');
+      return val == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> markOnboardingSeen(String studentUid) async {
+    try {
+      await _storage.write(key: 'has_seen_onboarding_$studentUid', value: 'true');
+    } catch (_) {}
+  }
+
   void _initFirestoreListeners() {
     // 1. Users collection stream
     _subscriptions.add(
@@ -721,13 +736,18 @@ class LmsRepository extends ChangeNotifier {
     required String title,
     required String description,
     required String youtubeId,
+    int? durationSeconds,
   }) async {
-    await _firestore.collection('videos').doc(id).update({
+    final updates = <String, dynamic>{
       'course_id': courseId,
       'title': title.trim(),
       'description': description.trim(),
       'youtube_id': youtubeId.trim(),
-    });
+    };
+    if (durationSeconds != null) {
+      updates['duration_seconds'] = durationSeconds;
+    }
+    await _firestore.collection('videos').doc(id).update(updates);
   }
 
   /// Force deletes video document from database and updates course count
@@ -875,11 +895,6 @@ class LmsRepository extends ChangeNotifier {
     );
 
     await _firestore.collection('watch_sessions').doc(sessionId).set(session.toMap());
-
-    // Also update usedViews if completed
-    if (isCompleted) {
-      await incrementUsedViews(studentId: _currentUser!.uid, videoId: video.id);
-    }
   }
 
   List<WatchSession> getAllWatchSessions() {

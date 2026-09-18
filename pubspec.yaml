@@ -2,7 +2,7 @@ name: royal_lms
 description: Royal LMS - A secure Learning Management System Flutter Application with Firebase backend, YouTube secure video player, view limits, device binding, and watch history analytics.
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -11,6 +11,7 @@ import '../profile/profile_screen.dart';
 import '../widgets/curved_bottom_nav_bar.dart';
 import 'video_player_screen.dart';
 import 'live_class_player_screen.dart';
+import 'student_onboarding_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -28,6 +29,34 @@ class _StudentDashboardState extends State<StudentDashboard> {
     CurvedNavItem(icon: Icons.bar_chart_rounded, label: 'History'),
     CurvedNavItem(icon: Icons.person_rounded, label: 'Profile'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFirstTimeOnboarding();
+  }
+
+  void _checkFirstTimeOnboarding() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final repo = Provider.of<LmsRepository>(context, listen: false);
+      final student = repo.currentUser;
+      if (student != null && student.isStudent) {
+        final hasSeen = await repo.hasSeenOnboarding(student.uid);
+        if (!hasSeen && mounted) {
+          await repo.markOnboardingSeen(student.uid);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StudentOnboardingScreen(
+                onFinish: () => Navigator.pop(context),
+              ),
+            ),
+          );
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +120,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF6366F1)),
+            tooltip: 'App & Security Guide',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StudentOnboardingScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: IndexedStack(
         index: _selectedTabIndex,

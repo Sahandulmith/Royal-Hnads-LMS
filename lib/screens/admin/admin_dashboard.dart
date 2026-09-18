@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/services/lms_repository.dart';
 import '../../core/services/image_helper.dart';
+import '../../core/services/youtube_service.dart';
 import '../../models/app_user.dart';
 import '../../models/video.dart';
 import '../../models/course.dart';
@@ -589,7 +592,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 145,
+        width: 160,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: _inputBg,
@@ -677,12 +680,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     children: [
                       Row(
                         children: [
-                          Text(s.name, style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              s.name.toUpperCase(),
+                              style: TextStyle(
+                                color: _textColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: s.isActive ? Colors.greenAccent.withAlpha(30) : Colors.redAccent.withAlpha(30),
+                              color: s.isActive
+                                  ? Colors.greenAccent.withAlpha(30)
+                                  : Colors.redAccent.withAlpha(30),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -696,18 +712,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(s.email, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           const Icon(Icons.phonelink_lock, color: Colors.orangeAccent, size: 12),
                           const SizedBox(width: 4),
-                          Text(
-                            s.registeredDeviceId != null
-                                ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
-                                : 'Bound Device: None (Will bind on next login)',
-                            style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                          Expanded(
+                            child: Text(
+                              s.registeredDeviceId != null
+                                  ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
+                                  : 'Bound Device: None (Will bind on next login)',
+                              style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -736,6 +755,173 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showStudentViewLimitsDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    final videos = repo.getAllVideos();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.remove_red_eye_rounded, color: Color(0xFF10B981), size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'View Limits: ${student.name}',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        student.email,
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: videos.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'No video lessons available in system yet.',
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: videos.length,
+                      itemBuilder: (context, idx) {
+                        final video = videos[idx];
+                        final perm = repo.getPermissionForStudent(student.uid, video.id);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: perm.isLimitReached
+                                  ? Colors.redAccent.withAlpha(80)
+                                  : const Color(0xFF334155),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                video.title,
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: perm.isLimitReached
+                                          ? Colors.redAccent.withAlpha(30)
+                                          : Colors.greenAccent.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      perm.isLimitReached
+                                          ? 'LIMIT REACHED (${perm.usedViews}/${perm.allowedViews} used)'
+                                          : '${perm.remainingViews} REMAINING (${perm.usedViews}/${perm.allowedViews} used)',
+                                      style: TextStyle(
+                                        color: perm.isLimitReached ? Colors.redAccent : Colors.greenAccent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      await repo.resetStudentViews(studentId: student.uid, videoId: video.id);
+                                      setDialogState(() {});
+                                    },
+                                    icon: const Icon(Icons.refresh_rounded, color: Colors.amberAccent, size: 14),
+                                    label: const Text('Reset Views', style: TextStyle(color: Colors.amberAccent, fontSize: 11)),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Text('Allowed Views:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18),
+                                    onPressed: perm.allowedViews > 1
+                                        ? () async {
+                                            await repo.setStudentViewLimit(
+                                              studentId: student.uid,
+                                              videoId: video.id,
+                                              allowedViews: perm.allowedViews - 1,
+                                            );
+                                            setDialogState(() {});
+                                          }
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text(
+                                      '${perm.allowedViews}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline, color: Color(0xFF10B981), size: 18),
+                                    onPressed: () async {
+                                      await repo.setStudentViewLimit(
+                                        studentId: student.uid,
+                                        videoId: video.id,
+                                        allowedViews: perm.allowedViews + 1,
+                                      );
+                                      setDialogState(() {});
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done', style: TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold)),
+              ),
+            ],
           );
         },
       ),
@@ -1018,13 +1204,54 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       const SizedBox(height: 2),
                       Text(v.title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text('YouTube ID: ${v.youtubeId} • Duration: ${v.formattedDuration}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                      Text(
+                        'YouTube ID: ${v.youtubeId} • Duration: ${v.formattedDuration}',
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                      ),
                     ],
                   ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Sync real duration button (especially useful for old 600s videos)
+                    IconButton(
+                      icon: const Icon(Icons.cloud_sync_rounded, color: Color(0xFF10B981), size: 20),
+                      tooltip: 'Sync Real Duration from YouTube',
+                      onPressed: () async {
+                        final snackBar = ScaffoldMessenger.of(context);
+                        snackBar.showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                                SizedBox(width: 12),
+                                Text('Fetching real duration from YouTube...'),
+                              ],
+                            ),
+                            duration: Duration(seconds: 5),
+                            backgroundColor: Color(0xFF1E293B),
+                          ),
+                        );
+                        final seconds = await YouTubeService.fetchVideoDuration(v.youtubeId);
+                        snackBar.hideCurrentSnackBar();
+                        if (seconds > 0) {
+                          await FirebaseFirestore.instance
+                              .collection('videos')
+                              .doc(v.id)
+                              .update({'duration_seconds': seconds});
+                          snackBar.showSnackBar(SnackBar(
+                            content: Text('Duration updated: ${YouTubeService.formatDuration(seconds)}'),
+                            backgroundColor: const Color(0xFF10B981),
+                          ));
+                        } else {
+                          snackBar.showSnackBar(const SnackBar(
+                            content: Text('Could not fetch duration (web or network error). Open on mobile to auto-sync.'),
+                            backgroundColor: Colors.orangeAccent,
+                          ));
+                        }
+                      },
+                    ),
                     IconButton(
                       icon: const Icon(Icons.edit_note_rounded, color: Color(0xFF8B5CF6), size: 22),
                       tooltip: 'Edit Video Details',
@@ -1092,8 +1319,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   controller: youtubeCtrl,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
-                    labelText: 'YouTube Video ID or Link',
+                    labelText: 'YouTube Video ID or Full Link',
                     labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'e.g. kJQP7kiw5Fk or https://youtu.be/kJQP7kiw5Fk',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1101,6 +1330,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   controller: descCtrl,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(labelText: 'Lesson Description', labelStyle: TextStyle(color: Colors.white70)),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF10B981).withAlpha(80)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, color: Color(0xFF10B981), size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Duration auto-detects from YouTube player on next play.',
+                          style: TextStyle(color: Color(0xFF10B981), fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1115,7 +1365,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     rawId = rawId.split('v=').last.split('&').first;
                   } else if (rawId.contains('youtu.be/')) {
                     rawId = rawId.split('youtu.be/').last.split('?').first;
+                  } else if (rawId.contains('youtube.com/shorts/')) {
+                    rawId = rawId.split('youtube.com/shorts/').last.split('?').first;
                   }
+                  rawId = rawId.trim().split('/').last.split('?').first;
+
+                  // Reset duration to 0 if YouTube ID changed (will auto-sync on next play)
+                  final int? newDuration = (rawId != video.youtubeId) ? 0 : null;
 
                   repo.updateVideo(
                     id: video.id,
@@ -1123,6 +1379,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     title: titleCtrl.text,
                     description: descCtrl.text,
                     youtubeId: rawId,
+                    durationSeconds: newDuration,
                   );
                   Navigator.pop(context);
                 }
@@ -1232,8 +1489,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final titleCtrl = TextEditingController();
     final youtubeCtrl = TextEditingController();
     final descCtrl = TextEditingController();
+    final durationCtrl = TextEditingController();
     String selectedCourseId = courses.isNotEmpty ? courses.first.id : 'course-1';
     int selectedDefaultViews = 1;
+    bool isFetchingDuration = false;
+    int fetchedDurationSeconds = 0;
+
+    Future<void> fetchDuration(StateSetter setDialogState) async {
+      final rawId = YouTubeService.extractVideoId(youtubeCtrl.text);
+      if (rawId.isEmpty) return;
+      setDialogState(() => isFetchingDuration = true);
+      final seconds = await YouTubeService.fetchVideoDuration(rawId);
+      setDialogState(() {
+        isFetchingDuration = false;
+        fetchedDurationSeconds = seconds;
+        if (seconds > 0) {
+          durationCtrl.text = YouTubeService.formatDuration(seconds);
+        }
+      });
+    }
 
     showDialog(
       context: context,
@@ -1260,35 +1534,101 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     );
                   }).toList(),
                   onChanged: (val) {
-                    if (val != null) {
-                      setDialogState(() => selectedCourseId = val);
-                    }
+                    if (val != null) setDialogState(() => selectedCourseId = val);
                   },
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: titleCtrl,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(labelText: 'Lesson Title', labelStyle: TextStyle(color: Colors.white70)),
+                  decoration: const InputDecoration(
+                    labelText: 'Lesson Title',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
                 ),
                 const SizedBox(height: 10),
+                // YouTube URL field + auto-fetch button
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: youtubeCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          labelText: 'YouTube Video ID or Full Link',
+                          labelStyle: TextStyle(color: Colors.white70),
+                          hintText: 'e.g. kJQP7kiw5Fk or https://youtu.be/...',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                        onSubmitted: (_) => fetchDuration(setDialogState),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    isFetchingDuration
+                        ? const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: SizedBox(
+                              width: 22, height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Color(0xFF10B981),
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            tooltip: 'Fetch Duration from YouTube',
+                            icon: const Icon(Icons.cloud_download_rounded,
+                                color: Color(0xFF10B981)),
+                            onPressed: () => fetchDuration(setDialogState),
+                          ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Duration field (auto-filled or manual input)
                 TextField(
-                  controller: youtubeCtrl,
+                  controller: durationCtrl,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'YouTube Video ID or Link',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    hintText: 'e.g. kJQP7kiw5Fk',
+                  decoration: InputDecoration(
+                    labelText: 'Video Duration (auto-filled or type manually)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    hintText: 'e.g. 3:23 or 1:23:45',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 11),
+                    suffixIcon: fetchedDurationSeconds > 0
+                        ? const Icon(Icons.check_circle,
+                            color: Color(0xFF10B981), size: 18)
+                        : null,
                   ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        color: Color(0xFF94A3B8), size: 13),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        kIsWeb
+                            ? 'On web: type duration manually (e.g. 3:23). On mobile, tap ↓ to auto-fetch.'
+                            : 'Tap the ↓ icon to auto-fetch real duration from YouTube.',
+                        style: const TextStyle(
+                            color: Color(0xFF64748B), fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: descCtrl,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(labelText: 'Lesson Description', labelStyle: TextStyle(color: Colors.white70)),
+                  decoration: const InputDecoration(
+                    labelText: 'Lesson Description',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Default Student View Limit:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('Default Student View Limit:',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 4),
                 DropdownButton<int>(
                   value: selectedDefaultViews,
@@ -1298,36 +1638,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   items: [1, 2, 3, 5, 10, 15, 20].map((limit) {
                     return DropdownMenuItem<int>(
                       value: limit,
-                      child: Text('$limit View${limit > 1 ? 's' : ''} (Assign to all students)'),
+                      child: Text(
+                          '$limit View${limit > 1 ? 's' : ''} (Assign to all students)'),
                     );
                   }).toList(),
                   onChanged: (val) {
-                    if (val != null) {
+                    if (val != null)
                       setDialogState(() => selectedDefaultViews = val);
-                    }
                   },
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 if (titleCtrl.text.isNotEmpty && youtubeCtrl.text.isNotEmpty) {
-                  String rawId = youtubeCtrl.text.trim();
-                  if (rawId.contains('v=')) {
-                    rawId = rawId.split('v=').last.split('&').first;
-                  } else if (rawId.contains('youtu.be/')) {
-                    rawId = rawId.split('youtu.be/').last.split('?').first;
-                  }
+                  final rawId =
+                      YouTubeService.extractVideoId(youtubeCtrl.text);
+                  // Parse manually-entered or auto-fetched duration
+                  int durationSec = YouTubeService
+                      .parseDurationString(durationCtrl.text.trim());
+                  // If field is empty, use what we fetched (or 0 = auto-detect from player)
+                  if (durationSec == 0) durationSec = fetchedDurationSeconds;
 
                   repo.addVideo(
                     courseId: selectedCourseId,
                     title: titleCtrl.text,
                     description: descCtrl.text,
                     youtubeId: rawId,
-                    durationSeconds: 600,
+                    durationSeconds: durationSec,
                     defaultAllowedViews: selectedDefaultViews,
                   );
                   Navigator.pop(context);
@@ -1452,80 +1795,149 @@ class _AdminDashboardState extends State<AdminDashboard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.person, color: Color(0xFF6366F1)),
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFF8B5CF6).withAlpha(35),
+                child: Text(
+                  student.name.isNotEmpty ? student.name.substring(0, 1).toUpperCase() : 'S',
+                  style: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.name,
+                      style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      student.email,
+                      style: TextStyle(color: _textSubColor, fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(width: 8),
-              Text(student.name, style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
-              Text('(${student.email})', style: TextStyle(color: _textSubColor, fontSize: 12)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: student.isActive ? Colors.greenAccent.withAlpha(25) : Colors.redAccent.withAlpha(25),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: student.isActive ? Colors.greenAccent.withAlpha(80) : Colors.redAccent.withAlpha(80)),
+                ),
+                child: Text(
+                  student.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                  style: TextStyle(
+                    color: student.isActive ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          const Divider(color: Color(0xFF334155)),
+          Divider(color: _borderColor),
           const SizedBox(height: 8),
-          ...videos.map((v) {
-            final perm = repo.getPermissionForStudent(student.uid, v.id);
-            return Padding(
+          if (videos.isEmpty)
+            Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(v.title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Allowed: ${perm.allowedViews} views | Used: ${perm.usedViews} | Remaining: ${perm.remainingViews}',
-                          style: TextStyle(
-                            color: perm.isLimitReached ? Colors.redAccent : Colors.greenAccent,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
+              child: Text(
+                'No videos available to configure limits.',
+                style: TextStyle(color: _textSubColor, fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            )
+          else
+            ...videos.map((v) {
+              final perm = repo.getPermissionForStudent(student.uid, v.id);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.all(10.0),
+                decoration: BoxDecoration(
+                  color: _inputBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: perm.isLimitReached ? Colors.redAccent.withAlpha(80) : _borderColor,
                   ),
-
-                  // Set Limit Dropdown / Button
-                  PopupMenuButton<int>(
-                    tooltip: 'Change Max Views',
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF334155),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Limit: ${perm.allowedViews}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                          const Icon(Icons.arrow_drop_down, color: Colors.white),
+                          Text(
+                            v.title,
+                            style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Allowed: ${perm.allowedViews} views | Used: ${perm.usedViews} | Remaining: ${perm.remainingViews}',
+                            style: TextStyle(
+                              color: perm.isLimitReached ? Colors.redAccent : (_isDark ? Colors.greenAccent : const Color(0xFF15803D)),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ],
                       ),
                     ),
-                    onSelected: (newLimit) {
-                      repo.setStudentViewLimit(studentId: student.uid, videoId: v.id, allowedViews: newLimit);
-                    },
-                    itemBuilder: (_) => [1, 2, 3, 5, 10]
-                        .map((limit) => PopupMenuItem(value: limit, child: Text('Allow $limit Views')))
-                        .toList(),
-                  ),
+                    const SizedBox(width: 8),
 
-                  const SizedBox(width: 8),
+                    // Set Limit Dropdown / Button
+                    PopupMenuButton<int>(
+                      tooltip: 'Change Max Views',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _cardBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _borderColor),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Limit: ${perm.allowedViews}', style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                            const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5CF6), size: 18),
+                          ],
+                        ),
+                      ),
+                      onSelected: (newLimit) {
+                        repo.setStudentViewLimit(studentId: student.uid, videoId: v.id, allowedViews: newLimit);
+                      },
+                      itemBuilder: (_) => [1, 2, 3, 5, 10, 15, 20]
+                          .map((limit) => PopupMenuItem(value: limit, child: Text('Allow $limit Views')))
+                          .toList(),
+                    ),
 
-                  // Reset Views Button
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.orangeAccent, size: 20),
-                    tooltip: 'Reset Used Views',
-                    onPressed: () {
-                      repo.resetStudentViews(studentId: student.uid, videoId: v.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Reset view count for ${student.name} on "${v.title}"'), backgroundColor: Colors.orangeAccent),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            );
-          }),
+                    const SizedBox(width: 4),
+
+                    // Reset Views Button
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.orangeAccent, size: 20),
+                      tooltip: 'Reset Used Views',
+                      onPressed: () {
+                        repo.resetStudentViews(studentId: student.uid, videoId: v.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Reset view count for ${student.name} on "${v.title}"'), backgroundColor: Colors.orangeAccent),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
