@@ -1,9 +1,14 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/services/lms_repository.dart';
 import '../../core/services/update_service.dart';
+import '../../core/services/web_image_picker.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/user_avatar.dart';
 import '../student/student_onboarding_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -26,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _obscureConfirm = true;
   bool _isUpdating = false;
   bool _isCheckingUpdate = false;
+  bool _isUploadingImage = false;
   String _currentAppVersion = '';
 
   @override
@@ -65,6 +71,138 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
   }
+
+  Future<void> _pickAndUploadImage(ImageSource source, LmsRepository repo, String uid) async {
+    try {
+      Uint8List? bytes;
+      int fileSizeInBytes = 0;
+      String mimeType = 'image/jpeg';
+
+      if (kIsWeb) {
+        // Pure Web File Picker (bypasses mobile plugin method channels entirely)
+        final webResult = await pickWebImage();
+        if (webResult == null) {
+          // User canceled file dialog or no file selected
+          return;
+        }
+        bytes = webResult.bytes;
+        fileSizeInBytes = webResult.size;
+        mimeType = webResult.type;
+      } else {
+        final picker = ImagePicker();
+        final pickedFile = await picker.pickImage(source: source);
+        if (pickedFile == null) return;
+        fileSizeInBytes = await pickedFile.length();
+        bytes = await pickedFile.readAsBytes();
+        mimeType = pickedFile.mimeType ?? 'image/jpeg';
+      }
+
+      if (bytes == null || bytes.isEmpty || fileSizeInBytes <= 0) return;
+
+      // 🛑 ENFORCE 5MB MAXIMUM FILE SIZE LIMIT (5,242,880 Bytes)
+      const maxSizeBytes = 5 * 1024 * 1024;
+      if (fileSizeInBytes > maxSizeBytes) {
+        final sizeInMB = (fileSizeInBytes / (1024 * 1024)).toStringAsFixed(2);
+        throw Exception('Selected image size ($sizeInMB MB) exceeds 5MB limit. Please choose a smaller photo.');
+      }
+
+
+      setState(() => _isUploadingImage = true);
+
+      final base64String = base64Encode(bytes);
+      final base64Image = 'data:$mimeType;base64,$base64String';
+
+      await repo.updateUserProfileImage(uid, base64Image);
+
+      if (mounted) {
+        _showSnackBar('Profile picture updated successfully!', const Color(0xFF10B981));
+      }
+    } catch (e) {
+      debugPrint('Error uploading profile picture: $e');
+      if (mounted) {
+        final errStr = e.toString().replaceAll('Exception:', '').trim();
+        _showSnackBar(errStr, Colors.redAccent);
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
+
+
+
+  void _showImageOptionsBottomSheet(BuildContext context, LmsRepository repo, String uid, String? currentBase64) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Change Profile Picture',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFF6366F1),
+                child: Icon(Icons.photo_library_rounded, color: Colors.white),
+              ),
+              title: Text(
+                kIsWeb ? 'Choose Image File' : 'Choose from Gallery',
+                style: const TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAndUploadImage(ImageSource.gallery, repo, uid);
+              },
+            ),
+            if (!kIsWeb)
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF10B981),
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                ),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadImage(ImageSource.camera, repo, uid);
+                },
+              ),
+            if (currentBase64 != null && currentBase64.isNotEmpty)
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Colors.redAccent,
+                  child: Icon(Icons.delete_forever_rounded, color: Colors.white),
+                ),
+                title: const Text('Remove Current Picture', style: TextStyle(color: Colors.redAccent)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  setState(() => _isUploadingImage = true);
+                  await repo.updateUserProfileImage(uid, null);
+                  if (mounted) {
+                    setState(() => _isUploadingImage = false);
+                    _showSnackBar('Profile picture removed.', Colors.orangeAccent);
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   @override
   void dispose() {
@@ -206,15 +344,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Center(
                   child: Column(
                     children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundColor: const Color(0xFF6366F1),
-                        child: Text(
-                          user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                        ),
+                      Stack(
+                        children: [
+                          UserAvatar(
+                            profileImageBase64: user.profileImageBase64,
+                            name: user.name,
+                            radius: 44,
+                            enablePreview: true,
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: InkWell(
+                              onTap: _isUploadingImage
+                                  ? null
+                                  : () => _showImageOptionsBottomSheet(context, repo, user.uid, user.profileImageBase64),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: cardBg, width: 2.5),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(60),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: _isUploadingImage
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
+
                       Text(
                         user.name,
                         style: TextStyle(color: textColor, fontSize: 22, fontWeight: FontWeight.bold),

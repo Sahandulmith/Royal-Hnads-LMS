@@ -10,6 +10,7 @@ class AppUser {
   final String? deviceModel;
   final String? deviceOs;
   final String? password;
+  final String? profileImageBase64;
   final DateTime createdAt;
 
   AppUser({
@@ -22,6 +23,7 @@ class AppUser {
     this.deviceModel,
     this.deviceOs,
     this.password,
+    this.profileImageBase64,
     required this.createdAt,
   });
 
@@ -39,6 +41,7 @@ class AppUser {
       'device_model': deviceModel,
       'device_os': deviceOs,
       'password': password ?? '',
+      'profile_image_base64': profileImageBase64,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -54,6 +57,7 @@ class AppUser {
       deviceModel: map['device_model'],
       deviceOs: map['device_os'],
       password: map['password'] ?? '',
+      profileImageBase64: map['profile_image_base64'],
       createdAt: map['created_at'] != null 
           ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now() 
           : DateTime.now(),
@@ -69,6 +73,7 @@ class AppUser {
     String? deviceModel,
     String? deviceOs,
     String? password,
+    String? profileImageBase64,
   }) {
     return AppUser(
       uid: uid,
@@ -80,6 +85,7 @@ class AppUser {
       deviceModel: deviceModel ?? this.deviceModel,
       deviceOs: deviceOs ?? this.deviceOs,
       password: password ?? this.password,
+      profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
       createdAt: createdAt,
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -10,6 +11,8 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../core/services/lms_repository.dart';
 import '../../core/services/security_service.dart';
 import '../../models/live_class.dart';
+import '../widgets/user_avatar.dart';
+import '../widgets/web_live_player.dart';
 
 class LiveClassPlayerScreen extends StatefulWidget {
   final LiveClass liveClass;
@@ -50,12 +53,17 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
     .meeting-detail,
     .info-modal,
     .meeting-summary,
+    .wm-meeting-info,
+    .meeting-info-container,
     div[class*="action-sheet"],
     div[class*="meeting-info"],
     div[class*="meeting-detail"],
     div[class*="info-modal"],
     div[class*="meeting-summary"],
     div[class*="security"],
+    div[class*="popover"],
+    div[class*="invite"],
+    div[class*="passcode"],
     button[class*="shield"],
     button[class*="meeting-info"],
     button[aria-label="Meeting Information"],
@@ -242,6 +250,7 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
   }
 
   Future<void> _enableSecurity() async {
+    if (kIsWeb) return;
     await SecurityService.enableSecureScreen();
 
     // Check periodically if screen recording software is active
@@ -269,16 +278,18 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
       final ytId = YoutubePlayer.convertUrlToId(url);
       if (ytId != null && ytId.isNotEmpty) {
         _isYouTubeStream = true;
-        _youtubeController = YoutubePlayerController(
-          initialVideoId: ytId,
-          flags: const YoutubePlayerFlags(
-            autoPlay: true,
-            isLive: true,
-            mute: false,
-            disableDragSeek: true,
-            hideControls: false,
-          ),
-        );
+        if (!kIsWeb) {
+          _youtubeController = YoutubePlayerController(
+            initialVideoId: ytId,
+            flags: const YoutubePlayerFlags(
+              autoPlay: true,
+              isLive: true,
+              mute: false,
+              disableDragSeek: true,
+              hideControls: false,
+            ),
+          );
+        }
         setState(() => _isLoading = false);
         return;
       }
@@ -363,6 +374,14 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
                             const Center(
                               child: CircularProgressIndicator(color: Color(0xFF6366F1)),
                             )
+                          else if (kIsWeb)
+                            Positioned.fill(
+                              child: getWebLivePlayer(
+                                url: widget.liveClass.classUrl,
+                                platform: widget.liveClass.platform,
+                                studentName: studentName,
+                              ),
+                            )
                           else if (_isYouTubeStream && _youtubeController != null)
                             Center(
                               child: YoutubePlayer(
@@ -393,6 +412,8 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
                                 useShouldOverrideUrlLoading: false,
                                 transparentBackground: true,
                                 useHybridComposition: true,
+                                iframeAllow: 'camera *; microphone *; autoplay *; display-capture *;',
+                                iframeAllowFullscreen: true,
                               ),
                               onWebViewCreated: (controller) {
                                 _webViewController = controller;
@@ -465,11 +486,23 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
       clean = clean.replaceAll('zoom.us/s/', 'zoom.us/wc/join/');
     }
 
+    final separator = clean.contains('?') ? '&' : '?';
+
+    // Auto-connect computer audio & microphone parameters
+    if (!clean.contains('autoJoinAudio=')) {
+      clean = '$clean${separator}autoJoinAudio=1';
+    }
+    if (!clean.contains('preferAudio=')) {
+      clean = '$clean&preferAudio=1';
+    }
+    if (!clean.contains('autojoin=')) {
+      clean = '$clean&autojoin=1';
+    }
+
     if (studentName.isNotEmpty) {
       final encodedName = Uri.encodeComponent(studentName);
-      final separator = clean.contains('?') ? '&' : '?';
       if (!clean.contains('dn=')) {
-        clean = '$clean${separator}dn=$encodedName';
+        clean = '$clean&dn=$encodedName';
       }
       if (!clean.contains('un=')) {
         clean = '$clean&un=$encodedName';
@@ -483,6 +516,9 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
   }
 
   Widget _buildHeaderBar() {
+    final repo = Provider.of<LmsRepository>(context, listen: false);
+    final user = repo.currentUser;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       color: const Color(0xFF0F172A),
@@ -492,7 +528,15 @@ class _LiveClassPlayerScreenState extends State<LiveClassPlayerScreen> {
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
-          const SizedBox(width: 6),
+          if (user != null) ...[
+            UserAvatar(
+              profileImageBase64: user.profileImageBase64,
+              name: user.name,
+              radius: 16,
+              enablePreview: true,
+            ),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -442,6 +442,21 @@ class LmsRepository extends ChangeNotifier {
     });
   }
 
+  Future<void> updateUserProfileImage(String uid, String? profileImageBase64) async {
+    if (profileImageBase64 != null && profileImageBase64.length > 7000000) {
+      throw Exception('Image payload exceeds maximum allowed 5MB limit.');
+    }
+    await _firestore.collection('users').doc(uid).update({
+      'profile_image_base64': profileImageBase64 ?? FieldValue.delete(),
+    });
+    if (_currentUser != null && _currentUser!.uid == uid) {
+      _currentUser = _currentUser!.copyWith(profileImageBase64: profileImageBase64);
+      notifyListeners();
+    }
+  }
+
+
+
   Future<void> createStudentUser({
     required String name,
     required String email,

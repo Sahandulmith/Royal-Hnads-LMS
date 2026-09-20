@@ -15,6 +15,7 @@ import '../../models/watch_session.dart';
 import '../../models/live_class.dart';
 import '../profile/profile_screen.dart';
 import '../widgets/curved_bottom_nav_bar.dart';
+import '../widgets/user_avatar.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -101,7 +102,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 _buildVideosTab(context, repo, videos),
                 _buildLiveClassTab(context, repo),
                 _buildLimitsAndDeviceRequestsTab(context, repo, students, videos, pendingRequests),
-                _buildAnalyticsTab(context, watchSessions),
+                _buildAnalyticsTab(context, repo, watchSessions),
                 const ProfileScreen(isEmbedded: true),
               ],
             ),
@@ -428,14 +429,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: s.isCompleted ? Colors.greenAccent.withAlpha(30) : Colors.amberAccent.withAlpha(30),
-                    child: Icon(
-                      s.isCompleted ? Icons.check_circle_outline : Icons.timelapse,
-                      color: s.isCompleted ? Colors.greenAccent : Colors.amberAccent,
-                      size: 20,
-                    ),
+                  UserAvatar(
+                    profileImageBase64: students.cast<AppUser?>().firstWhere((u) => u?.uid == s.studentId, orElse: () => null)?.profileImageBase64,
+                    name: s.studentName,
+                    radius: 20,
+                    enablePreview: true,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -673,13 +671,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: const Color(0xFF6366F1).withAlpha(40),
-                        child: Text(
-                          s.name.isNotEmpty ? s.name.substring(0, 1).toUpperCase() : 'S',
-                          style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
-                        ),
+                      UserAvatar(
+                        profileImageBase64: s.profileImageBase64,
+                        name: s.name,
+                        radius: 22,
+                        enablePreview: true,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -806,13 +802,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: const Color(0xFF6366F1).withAlpha(40),
-              child: Text(
-                student.name.isNotEmpty ? student.name.substring(0, 1).toUpperCase() : 'S',
-                style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold, fontSize: 20),
-              ),
+            UserAvatar(
+              profileImageBase64: student.profileImageBase64,
+              name: student.name,
+              radius: 24,
+              enablePreview: true,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -2057,13 +2051,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFF8B5CF6).withAlpha(35),
-                child: Text(
-                  student.name.isNotEmpty ? student.name.substring(0, 1).toUpperCase() : 'S',
-                  style: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold, fontSize: 14),
-                ),
+              UserAvatar(
+                profileImageBase64: student.profileImageBase64,
+                name: student.name,
+                radius: 20,
+                enablePreview: true,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2336,18 +2328,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   // --- TAB 5: WATCH HISTORY & ANALYTICS ---
-  Widget _buildAnalyticsTab(BuildContext context, List<WatchSession> sessions) {
+  Widget _buildAnalyticsTab(BuildContext context, LmsRepository repo, List<WatchSession> sessions) {
     if (sessions.isEmpty) {
       return const Center(child: Text('No watch sessions recorded yet.', style: TextStyle(color: Colors.white54)));
     }
 
     final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+    final students = repo.getStudents();
 
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: sessions.length,
       itemBuilder: (context, index) {
         final s = sessions[index];
+        final studentUser = students.cast<AppUser?>().firstWhere((u) => u?.uid == s.studentId, orElse: () => null);
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -2358,17 +2352,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: s.isCompleted ? Colors.greenAccent.withAlpha(30) : Colors.orangeAccent.withAlpha(30),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  s.isCompleted ? Icons.check_circle_outline : Icons.timelapse,
-                  color: s.isCompleted ? Colors.greenAccent : Colors.orangeAccent,
-                  size: 24,
-                ),
+              UserAvatar(
+                profileImageBase64: studentUser?.profileImageBase64,
+                name: s.studentName,
+                radius: 20,
+                enablePreview: true,
               ),
               const SizedBox(width: 14),
               Expanded(

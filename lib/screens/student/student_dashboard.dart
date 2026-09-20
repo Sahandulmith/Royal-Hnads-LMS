@@ -9,6 +9,7 @@ import '../../models/video.dart';
 import '../../models/live_class.dart';
 import '../profile/profile_screen.dart';
 import '../widgets/curved_bottom_nav_bar.dart';
+import '../widgets/user_avatar.dart';
 import 'video_player_screen.dart';
 import 'live_class_player_screen.dart';
 import 'student_onboarding_screen.dart';
@@ -82,41 +83,34 @@ class _StudentDashboardState extends State<StudentDashboard> {
         shadowColor: Colors.black.withAlpha(30),
         title: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                'assets/images/royal hands.png',
-                width: 30,
-                height: 30,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withAlpha(40),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.school, color: Color(0xFF6366F1), size: 20),
-                ),
-              ),
+            UserAvatar(
+              profileImageBase64: user.profileImageBase64,
+              name: user.name,
+              radius: 18,
+              enablePreview: true,
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome, ${user.name}',
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome, ${user.name}',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  device != null ? 'Bound: ${device.model}' : 'Registered Device',
-                  style: const TextStyle(color: Color(0xFF10B981), fontSize: 11),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    device != null ? 'Bound: ${device.model}' : 'Registered Device',
+                    style: const TextStyle(color: Color(0xFF10B981), fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -713,19 +707,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: s.isCompleted
-                      ? Colors.greenAccent.withAlpha(30)
-                      : Colors.orangeAccent.withAlpha(30),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  s.isCompleted ? Icons.check_circle_outline : Icons.timelapse,
-                  color: s.isCompleted ? (isDark ? Colors.greenAccent : const Color(0xFF15803D)) : (isDark ? Colors.orangeAccent : const Color(0xFFD97706)),
-                  size: 24,
-                ),
+              UserAvatar(
+                profileImageBase64: user.profileImageBase64,
+                name: user.name,
+                radius: 20,
+                enablePreview: true,
               ),
               const SizedBox(width: 14),
               Expanded(
