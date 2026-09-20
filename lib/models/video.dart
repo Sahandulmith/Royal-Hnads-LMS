@@ -18,8 +18,13 @@ class Video {
   });
 
   String get formattedDuration {
-    final minutes = durationSeconds ~/ 60;
+    if (durationSeconds == 0) return 'Auto-detecting...';
+    final hours = durationSeconds ~/ 3600;
+    final minutes = (durationSeconds % 3600) ~/ 60;
     final remainingSecs = durationSeconds % 60;
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSecs.toString().padLeft(2, '0')}';
+    }
     return '${minutes.toString().padLeft(2, '0')}:${remainingSecs.toString().padLeft(2, '0')}';
   }
 

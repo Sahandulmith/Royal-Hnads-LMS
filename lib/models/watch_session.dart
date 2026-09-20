@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class WatchSession {
   final String id;
   final String studentId;
@@ -54,6 +56,13 @@ class WatchSession {
   }
 
   factory WatchSession.fromMap(Map<String, dynamic> map, String docId) {
+    DateTime parseDate(dynamic val) {
+      if (val == null) return DateTime.now();
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
     return WatchSession(
       id: docId,
       studentId: map['student_id'] ?? '',
@@ -63,12 +72,8 @@ class WatchSession {
       deviceId: map['device_id'] ?? '',
       deviceModel: map['device_model'] ?? '',
       deviceOs: map['device_os'] ?? '',
-      startTime: map['start_time'] != null 
-          ? DateTime.tryParse(map['start_time'].toString()) ?? DateTime.now() 
-          : DateTime.now(),
-      endTime: map['end_time'] != null 
-          ? DateTime.tryParse(map['end_time'].toString()) ?? DateTime.now() 
-          : DateTime.now(),
+      startTime: parseDate(map['start_time']),
+      endTime: parseDate(map['end_time']),
       watchDurationSeconds: map['watch_duration_seconds'] ?? 0,
       isCompleted: map['is_completed'] ?? false,
       ipAddress: map['ip_address'],

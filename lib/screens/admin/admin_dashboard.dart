@@ -1,13 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/services/lms_repository.dart';
+import '../../core/services/image_helper.dart';
+import '../../core/services/youtube_service.dart';
 import '../../models/app_user.dart';
 import '../../models/video.dart';
 import '../../models/course.dart';
 import '../../models/device_request.dart';
 import '../../models/watch_session.dart';
+import '../../models/live_class.dart';
+import '../profile/profile_screen.dart';
+import '../widgets/curved_bottom_nav_bar.dart';
+import '../widgets/user_avatar.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -16,20 +24,27 @@ class AdminDashboard extends StatefulWidget {
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AdminDashboardState extends State<AdminDashboard> {
+  int _selectedTabIndex = 0;
+  String _limitSearchQuery = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 5, vsync: this);
-  }
+  final List<CurvedNavItem> _adminNavItems = const [
+    CurvedNavItem(icon: Icons.people_alt_rounded, label: 'Students'),
+    CurvedNavItem(icon: Icons.video_collection_rounded, label: 'Videos'),
+    CurvedNavItem(icon: Icons.live_tv_rounded, label: 'Live Class'),
+    CurvedNavItem(icon: Icons.phonelink_setup_rounded, label: 'Limits'),
+    CurvedNavItem(icon: Icons.analytics_rounded, label: 'Analytics'),
+    CurvedNavItem(icon: Icons.person_rounded, label: 'Profile'),
+  ];
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _scaffoldBg => _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+  Color get _appBarBg => _isDark ? const Color(0xFF1E293B) : Colors.white;
+  Color get _cardBg => _isDark ? const Color(0xFF1E293B) : Colors.white;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _textSubColor => _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  Color get _borderColor => _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+  Color get _inputBg => _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
 
   @override
   Widget build(BuildContext context) {
@@ -49,91 +64,27 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     final videos = repo.getAllVideos();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: _scaffoldBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
-        elevation: 0,
-        title: const Row(
+        backgroundColor: _appBarBg,
+        elevation: _isDark ? 0 : 1,
+        shadowColor: Colors.black.withAlpha(30),
+        title: Row(
           children: [
-            Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF8B5CF6), size: 26),
-            SizedBox(width: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/images/royal hands.png',
+                width: 30,
+                height: 30,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF8B5CF6), size: 26),
+              ),
+            ),
+            const SizedBox(width: 10),
             Text(
-              'LMS Admin Control Center',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-            tooltip: 'Logout Admin',
-            onPressed: () => repo.logout(),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: const Color(0xFF8B5CF6),
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xFF94A3B8),
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: [
-            Tab(
-              child: Row(
-                children: [
-                  const Icon(Icons.people_alt_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Students (${students.length})'),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                children: [
-                  const Icon(Icons.video_collection_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Videos & Classes (${videos.length})'),
-                ],
-              ),
-            ),
-            const Tab(
-              child: Row(
-                children: [
-                  Icon(Icons.lock_reset, size: 16),
-                  SizedBox(width: 6),
-                  Text('View Limits & Resets'),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                children: [
-                  const Icon(Icons.phonelink_setup, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Device Approvals (${pendingRequests.length})'),
-                  if (pendingRequests.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: const BoxDecoration(color: Colors.orangeAccent, shape: BoxShape.circle),
-                      child: Text(
-                        '${pendingRequests.length}',
-                        style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                children: [
-                  const Icon(Icons.analytics_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Analytics & Logs (${watchSessions.length})'),
-                ],
-              ),
+              'Royal Hands Admin',
+              style: TextStyle(color: _textColor, fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -144,16 +95,468 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           _buildQuickStatsBar(students.length, pendingRequests.length, watchSessions.length, videos.length),
 
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
+            child: IndexedStack(
+              index: _selectedTabIndex,
               children: [
                 _buildStudentsTab(context, repo, students),
                 _buildVideosTab(context, repo, videos),
-                _buildViewLimitsTab(context, repo, students, videos),
-                _buildDeviceRequestsTab(context, repo, repo.getAllDeviceRequests()),
-                _buildAnalyticsTab(context, watchSessions),
+                _buildLiveClassTab(context, repo),
+                _buildLimitsAndDeviceRequestsTab(context, repo, students, videos, pendingRequests),
+                _buildAnalyticsTab(context, repo, watchSessions),
+                const ProfileScreen(isEmbedded: true),
               ],
             ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: CurvedBottomNavBar(
+        items: _adminNavItems,
+        selectedIndex: _selectedTabIndex,
+        onTap: (index) => setState(() => _selectedTabIndex = index),
+        backgroundColor: _cardBg,
+        activeColor: const Color(0xFF8B5CF6),
+        inactiveColor: _textSubColor,
+      ),
+    );
+  }
+
+  Widget _buildLimitsAndDeviceRequestsTab(
+    BuildContext context,
+    LmsRepository repo,
+    List<AppUser> students,
+    List<Video> videos,
+    List<DeviceRequest> pendingRequests,
+  ) {
+    final filteredStudents = students.where((s) {
+      final q = _limitSearchQuery.trim().toLowerCase();
+      if (q.isEmpty) return true;
+      return s.name.toLowerCase().contains(q) || s.email.toLowerCase().contains(q);
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 90),
+      children: [
+        if (pendingRequests.isNotEmpty) ...[
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Pending Device Transfer Approvals (${pendingRequests.length})',
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...repo.getAllDeviceRequests().map((req) => _buildSingleDeviceRequestCard(context, repo, req)),
+          const Divider(color: Color(0xFF334155)),
+          const SizedBox(height: 12),
+        ],
+        // Search Bar for Student Limits
+        TextField(
+          onChanged: (val) => setState(() => _limitSearchQuery = val),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Search student by name or email...',
+            hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF8B5CF6), size: 20),
+            suffixIcon: _limitSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, color: Color(0xFF94A3B8), size: 18),
+                    onPressed: () => setState(() => _limitSearchQuery = ''),
+                  )
+                : null,
+            filled: true,
+            fillColor: const Color(0xFF1E293B),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF334155)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF334155)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF8B5CF6)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (filteredStudents.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                'No student accounts match your search.',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...filteredStudents.map((student) => _buildSingleStudentLimitsCard(context, repo, student, videos)),
+      ],
+    );
+  }
+
+  // --- TAB 0: DASHBOARD OVERVIEW SCREEN ---
+  Widget _buildDashboardTab(
+    BuildContext context,
+    LmsRepository repo,
+    List<AppUser> students,
+    List<Video> videos,
+    List<DeviceRequest> pendingRequests,
+    List<WatchSession> watchSessions,
+  ) {
+    final activeStudentsCount = students.where((s) => s.isActive).length;
+    final totalWatchMinutes = watchSessions.fold<int>(0, (sum, s) => sum + (s.watchDurationSeconds ~/ 60));
+    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+
+    return ListView(
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
+      children: [
+        // 1. Welcome Header Banner
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF8B5CF6).withAlpha(80)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(80),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withAlpha(35),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.dashboard_customize_rounded, color: Color(0xFF8B5CF6), size: 32),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Welcome, Admin',
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Royal Hands LMS Control Center • ${students.length} Registered Students ($activeStudentsCount Active)',
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // 2. Summary Metric Tiles Grid (2x2)
+        const Text(
+          'System Overview & Metrics',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Total Students',
+                value: '${students.length}',
+                subtitle: '$activeStudentsCount Active',
+                icon: Icons.people_alt_rounded,
+                color: Colors.blueAccent,
+                onTap: () => setState(() => _selectedTabIndex = 0),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Recorded Videos',
+                value: '${videos.length}',
+                subtitle: '${repo.getCourses().length} Courses',
+                icon: Icons.video_collection_rounded,
+                color: Colors.purpleAccent,
+                onTap: () => setState(() => _selectedTabIndex = 1),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Pending Requests',
+                value: '${pendingRequests.length}',
+                subtitle: pendingRequests.isEmpty ? 'All cleared' : 'Action required',
+                icon: Icons.phonelink_setup_rounded,
+                color: Colors.orangeAccent,
+                isAlert: pendingRequests.isNotEmpty,
+                onTap: () => setState(() => _selectedTabIndex = 3),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Total Watch Time',
+                value: '$totalWatchMinutes m',
+                subtitle: '${watchSessions.length} Sessions',
+                icon: Icons.analytics_rounded,
+                color: Colors.greenAccent,
+                onTap: () => setState(() => _selectedTabIndex = 4),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // 3. Quick Action Shortcut Buttons
+        const Text(
+          'Quick Actions',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickActionButton(
+                icon: Icons.person_add_alt_1_rounded,
+                label: 'Add Student',
+                color: const Color(0xFF6366F1),
+                onTap: () => _showAddStudentDialog(context, repo),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildQuickActionButton(
+                icon: Icons.video_call_rounded,
+                label: 'Add Lesson',
+                color: const Color(0xFF8B5CF6),
+                onTap: () => _showAddVideoDialog(context, repo, repo.getCourses()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildQuickActionButton(
+                icon: Icons.phonelink_lock_rounded,
+                label: 'Student Limits',
+                color: const Color(0xFF10B981),
+                onTap: () => setState(() => _selectedTabIndex = 3),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // 4. Pending Device Approvals Direct Action Widget
+        if (pendingRequests.isNotEmpty) ...[
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Pending Device Transfers (${pendingRequests.length})',
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...pendingRequests.take(2).map((req) => _buildSingleDeviceRequestCard(context, repo, req)),
+          if (pendingRequests.length > 2)
+            Center(
+              child: TextButton.icon(
+                onPressed: () => setState(() => _selectedTabIndex = 3),
+                icon: const Icon(Icons.arrow_forward, color: Colors.orangeAccent, size: 16),
+                label: Text('View all ${pendingRequests.length} pending requests', style: const TextStyle(color: Colors.orangeAccent)),
+              ),
+            ),
+          const SizedBox(height: 20),
+        ],
+
+        // 5. Recent Watch Sessions Feed Widget
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recent Watch Sessions',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            TextButton(
+              onPressed: () => setState(() => _selectedTabIndex = 4),
+              child: const Text('View All', style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (watchSessions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: const Center(
+              child: Text('No watch history recorded yet.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+            ),
+          )
+        else
+          ...watchSessions.take(3).map((s) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF334155)),
+              ),
+              child: Row(
+                children: [
+                  UserAvatar(
+                    profileImageBase64: students.cast<AppUser?>().firstWhere((u) => u?.uid == s.studentId, orElse: () => null)?.profileImageBase64,
+                    name: s.studentName,
+                    radius: 20,
+                    enablePreview: true,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.studentName, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 2),
+                        Text(s.videoTitle, style: const TextStyle(color: Color(0xFF8B5CF6), fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text('Watched: ${s.formattedDuration} • ${dateFormat.format(s.startTime)}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String title,
+    required String value,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    bool isAlert = false,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isAlert ? Colors.orangeAccent : const Color(0xFF334155)),
+          boxShadow: [
+            if (isAlert)
+              BoxShadow(
+                color: Colors.orangeAccent.withAlpha(30),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(30),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF64748B), size: 14),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              value,
+              style: TextStyle(
+                color: isAlert ? Colors.orangeAccent : Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color.withAlpha(40),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: color.withAlpha(100)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -163,42 +566,67 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   // --- STATS BAR ---
   Widget _buildQuickStatsBar(int studentCount, int pendingReqs, int sessionCount, int videoCount) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: const Color(0xFF1E293B).withAlpha(150),
-      child: Row(
+      height: 76,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      color: _isDark ? const Color(0xFF1E293B).withAlpha(180) : Colors.white,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          _buildStatItem('Total Students', '$studentCount', Icons.person_outline, Colors.blueAccent),
-          const SizedBox(width: 16),
-          _buildStatItem('Recorded Videos', '$videoCount', Icons.ondemand_video, Colors.purpleAccent),
-          const SizedBox(width: 16),
-          _buildStatItem('Pending Device Reqs', '$pendingReqs', Icons.devices, Colors.orangeAccent),
-          const SizedBox(width: 16),
-          _buildStatItem('Total Watch Sessions', '$sessionCount', Icons.history, Colors.greenAccent),
+          _buildStatItem('Total Students', '$studentCount', Icons.person_outline_rounded, const Color(0xFF3B82F6), onTap: () => setState(() => _selectedTabIndex = 0)),
+          const SizedBox(width: 12),
+          _buildStatItem('Recorded Videos', '$videoCount', Icons.ondemand_video_rounded, const Color(0xFFA855F7), onTap: () => setState(() => _selectedTabIndex = 1)),
+          const SizedBox(width: 12),
+          _buildStatItem('Pending Requests', '$pendingReqs', Icons.phonelink_setup_rounded, const Color(0xFFF59E0B), isAlert: pendingReqs > 0, onTap: () => setState(() => _selectedTabIndex = 3)),
+          const SizedBox(width: 12),
+          _buildStatItem('Total Sessions', '$sessionCount', Icons.history_rounded, const Color(0xFF10B981), onTap: () => setState(() => _selectedTabIndex = 4)),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
-    return Expanded(
+  Widget _buildStatItem(String label, String value, IconData icon, Color color, {bool isAlert = false, VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        width: 160,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF334155)),
+          color: _inputBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isAlert ? Colors.amber.withAlpha(160) : _borderColor),
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withAlpha(35),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: isAlert ? (_isDark ? Colors.amberAccent : const Color(0xFFD97706)) : _textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _textSubColor, fontSize: 11, fontWeight: FontWeight.w500),
+                  ),
                 ],
               ),
             ),
@@ -212,85 +640,544 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   Widget _buildStudentsTab(BuildContext context, LmsRepository repo, List<AppUser> students) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddStudentDialog(context, repo),
-        backgroundColor: const Color(0xFF8B5CF6),
-        icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
-        label: const Text('Add Student Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showAddStudentDialog(context, repo),
+          backgroundColor: const Color(0xFF8B5CF6),
+          icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
+          label: const Text('Add Student Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 120),
         itemCount: students.length,
         itemBuilder: (context, index) {
           final s = students[index];
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF334155)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF6366F1).withAlpha(40),
-                  child: Text(
-                    s.name.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showStudentDetailsDialog(context, repo, s),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _borderColor),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(s.name, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: s.isActive ? Colors.greenAccent.withAlpha(30) : Colors.redAccent.withAlpha(30),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              s.isActive ? 'ACTIVE' : 'DEACTIVATED',
-                              style: TextStyle(
-                                color: s.isActive ? Colors.greenAccent : Colors.redAccent,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      UserAvatar(
+                        profileImageBase64: s.profileImageBase64,
+                        name: s.name,
+                        radius: 22,
+                        enablePreview: true,
                       ),
-                      const SizedBox(height: 4),
-                      Text(s.email, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.phonelink_lock, color: Colors.orangeAccent, size: 12),
-                          const SizedBox(width: 4),
-                          Text(
-                            s.registeredDeviceId != null
-                                ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
-                                : 'Bound Device: None (Will bind on next login)',
-                            style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
-                          ),
-                        ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Name & Status Badge
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.name,
+                                    style: TextStyle(
+                                      color: _textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: s.isActive
+                                        ? const Color(0xFF10B981).withAlpha(30)
+                                        : Colors.redAccent.withAlpha(30),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    s.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                                    style: TextStyle(
+                                      color: s.isActive ? const Color(0xFF10B981) : Colors.redAccent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+
+                            // 2. Email & Action Buttons Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.email,
+                                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Color(0xFF6366F1), size: 18),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Edit Student Details',
+                                  onPressed: () => _showEditStudentDialog(context, repo, s),
+                                ),
+                                const SizedBox(width: 12),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Force Remove Student',
+                                  onPressed: () => _showDeleteStudentDialog(context, repo, s),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 24,
+                                  child: Switch(
+                                    value: s.isActive,
+                                    activeColor: const Color(0xFF10B981),
+                                    onChanged: (_) => repo.toggleUserActive(s.uid),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+
+                            // 3. Device Info Row
+                            Row(
+                              children: [
+                                const Icon(Icons.phonelink_lock, color: Colors.orangeAccent, size: 13),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    s.registeredDeviceId != null
+                                        ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
+                                        : 'Bound Device: None (Will bind on next login)',
+                                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Switch(
-                  value: s.isActive,
-                  activeColor: const Color(0xFF10B981),
-                  onChanged: (_) => repo.toggleUserActive(s.uid),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showStudentDetailsDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155)),
+        ),
+        title: Row(
+          children: [
+            UserAvatar(
+              profileImageBase64: student.profileImageBase64,
+              name: student.name,
+              radius: 24,
+              enablePreview: true,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Student Full Profile',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Complete Account & Hardware Record',
+                    style: TextStyle(color: const Color(0xFF94A3B8), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Account Details Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SelectableText(
+                            student.name,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: student.isActive ? Colors.greenAccent.withAlpha(30) : Colors.redAccent.withAlpha(30),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: student.isActive ? Colors.greenAccent.withAlpha(80) : Colors.redAccent.withAlpha(80)),
+                          ),
+                          child: Text(
+                            student.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                            style: TextStyle(
+                              color: student.isActive ? Colors.greenAccent : Colors.redAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDetailRow('Email Address', student.email),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('User Account UID', student.uid),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Registration Date', dateFormat.format(student.createdAt)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Bound Hardware Device Card
+              const Text(
+                'Registered Hardware Device',
+                style: TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: student.registeredDeviceId != null
+                        ? Colors.amberAccent.withAlpha(100)
+                        : const Color(0xFF334155),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          student.registeredDeviceId != null
+                              ? Icons.phonelink_lock_rounded
+                              : Icons.phonelink_off_rounded,
+                          color: student.registeredDeviceId != null ? Colors.amberAccent : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          student.registeredDeviceId != null ? 'Account Bound to Specific Device' : 'Unbound (Will bind on next login)',
+                          style: TextStyle(
+                            color: student.registeredDeviceId != null ? Colors.amberAccent : Colors.grey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDetailRow('Device Model Name', student.deviceModel ?? 'None registered yet'),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Device OS / SDK Version', student.deviceOs ?? 'None registered yet'),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Hardware Unique ID', student.registeredDeviceId ?? 'UNBOUND'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.all(16),
+        actions: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              if (student.registeredDeviceId != null)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await repo.resetStudentDevice(student.uid);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Unbound device for ${student.name}. Next login will register new device.'),
+                          backgroundColor: Colors.orangeAccent,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.phonelink_erase_rounded, color: Colors.amberAccent, size: 16),
+                  label: const Text('Unbind Device', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.amberAccent),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showEditStudentDialog(context, repo, student);
+                },
+                icon: const Icon(Icons.edit, color: Colors.white, size: 16),
+                label: const Text('Edit Student', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _limitSearchQuery = student.name;
+                    _selectedTabIndex = 3;
+                  });
+                },
+                icon: const Icon(Icons.lock_clock_rounded, color: Colors.white, size: 16),
+                label: const Text('View Limits', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 2),
+        SelectableText(
+          value,
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
+  void _showStudentViewLimitsDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    final videos = repo.getAllVideos();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.remove_red_eye_rounded, color: Color(0xFF10B981), size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'View Limits: ${student.name}',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        student.email,
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: videos.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'No video lessons available in system yet.',
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: videos.length,
+                      itemBuilder: (context, idx) {
+                        final video = videos[idx];
+                        final perm = repo.getPermissionForStudent(student.uid, video.id);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: perm.isLimitReached
+                                  ? Colors.redAccent.withAlpha(80)
+                                  : const Color(0xFF334155),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                video.title,
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: perm.isLimitReached
+                                          ? Colors.redAccent.withAlpha(30)
+                                          : Colors.greenAccent.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      perm.isLimitReached
+                                          ? 'LIMIT REACHED (${perm.usedViews}/${perm.allowedViews} used)'
+                                          : '${perm.remainingViews} REMAINING (${perm.usedViews}/${perm.allowedViews} used)',
+                                      style: TextStyle(
+                                        color: perm.isLimitReached ? Colors.redAccent : Colors.greenAccent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      await repo.resetStudentViews(studentId: student.uid, videoId: video.id);
+                                      setDialogState(() {});
+                                    },
+                                    icon: const Icon(Icons.refresh_rounded, color: Colors.amberAccent, size: 14),
+                                    label: const Text('Reset Views', style: TextStyle(color: Colors.amberAccent, fontSize: 11)),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Text('Allowed Views:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18),
+                                    onPressed: perm.allowedViews > 1
+                                        ? () async {
+                                            await repo.setStudentViewLimit(
+                                              studentId: student.uid,
+                                              videoId: video.id,
+                                              allowedViews: perm.allowedViews - 1,
+                                            );
+                                            setDialogState(() {});
+                                          }
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text(
+                                      '${perm.allowedViews}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline, color: Color(0xFF10B981), size: 18),
+                                    onPressed: () async {
+                                      await repo.setStudentViewLimit(
+                                        studentId: student.uid,
+                                        videoId: video.id,
+                                        allowedViews: perm.allowedViews + 1,
+                                      );
+                                      setDialogState(() {});
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done', style: TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold)),
+              ),
+            ],
           );
         },
       ),
@@ -300,6 +1187,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   void _showAddStudentDialog(BuildContext context, LmsRepository repo) {
     final nameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -326,6 +1214,17 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                 labelStyle: TextStyle(color: Colors.white70),
               ),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passwordCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Account Password',
+                labelStyle: TextStyle(color: Colors.white70),
+                hintText: 'Minimum 6 characters',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -333,11 +1232,104 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           ElevatedButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty && emailCtrl.text.isNotEmpty) {
-                repo.createStudentUser(name: nameCtrl.text, email: emailCtrl.text);
+                repo.createStudentUser(
+                  name: nameCtrl.text,
+                  email: emailCtrl.text,
+                  password: passwordCtrl.text,
+                );
                 Navigator.pop(context);
               }
             },
             child: const Text('Create Student'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditStudentDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    final nameCtrl = TextEditingController(text: student.name);
+    final emailCtrl = TextEditingController(text: student.email);
+    final passwordCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: Text('Edit Student: ${student.name}', style: const TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'Full Name', labelStyle: TextStyle(color: Colors.white70)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'Student Email', labelStyle: TextStyle(color: Colors.white70)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passwordCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'New Password (leave blank to keep current)',
+                labelStyle: TextStyle(color: Colors.white70),
+                hintText: 'Enter new password if changing',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty && emailCtrl.text.isNotEmpty) {
+                repo.updateStudentUser(
+                  uid: student.uid,
+                  name: nameCtrl.text,
+                  email: emailCtrl.text,
+                  password: passwordCtrl.text.trim().isNotEmpty ? passwordCtrl.text : null,
+                );
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteStudentDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Confirm Force Deletion', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete student account "${student.name}" (${student.email})?\n\nThis will remove the student document and all associated permissions and device requests from the database.',
+          style: const TextStyle(color: Color(0xFF94A3B8)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              repo.deleteStudentUser(student.uid);
+              Navigator.pop(context);
+            },
+            child: const Text('Force Delete Student', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -350,26 +1342,97 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddVideoDialog(context, repo, courses),
-        backgroundColor: const Color(0xFF8B5CF6),
-        icon: const Icon(Icons.add_to_photos_rounded, color: Colors.white),
-        label: const Text('Add YouTube Video Lesson', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withAlpha(90),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showAddCourseDialog(context, repo),
+                  icon: const Icon(Icons.library_add_rounded, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Add Course',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8B5CF6).withAlpha(90),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showAddVideoDialog(context, repo, courses),
+                  icon: const Icon(Icons.add_to_photos_rounded, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Add Video Lesson',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 120),
         itemCount: videos.length,
         itemBuilder: (context, index) {
           final v = videos[index];
-          final course = courses.firstWhere((c) => c.id == v.courseId, orElse: () => Course(id: '', title: 'General', description: '', thumbnailUrl: '', createdAt: DateTime.now()));
+          final course = courses.firstWhere(
+            (c) => c.id == v.courseId,
+            orElse: () => Course(id: '', title: 'General', description: '', thumbnailUrl: '', createdAt: DateTime.now()),
+          );
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: _cardBg,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF334155)),
+              border: Border.all(color: _borderColor),
             ),
             child: Row(
               children: [
@@ -380,7 +1443,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                     width: 90,
                     height: 60,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(width: 90, height: 60, color: Colors.black26, child: const Icon(Icons.video_collection, color: Colors.white38)),
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 90,
+                      height: 60,
+                      color: Colors.black26,
+                      child: const Icon(Icons.video_collection, color: Colors.white38),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -392,9 +1460,65 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                       const SizedBox(height: 2),
                       Text(v.title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text('YouTube ID: ${v.youtubeId} • Duration: ${v.formattedDuration}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                      Text(
+                        'YouTube ID: ${v.youtubeId} • Duration: ${v.formattedDuration}',
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                      ),
                     ],
                   ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Sync real duration button (especially useful for old 600s videos)
+                    IconButton(
+                      icon: const Icon(Icons.cloud_sync_rounded, color: Color(0xFF10B981), size: 20),
+                      tooltip: 'Sync Real Duration from YouTube',
+                      onPressed: () async {
+                        final snackBar = ScaffoldMessenger.of(context);
+                        snackBar.showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                                SizedBox(width: 12),
+                                Text('Fetching real duration from YouTube...'),
+                              ],
+                            ),
+                            duration: Duration(seconds: 5),
+                            backgroundColor: Color(0xFF1E293B),
+                          ),
+                        );
+                        final seconds = await YouTubeService.fetchVideoDuration(v.youtubeId);
+                        snackBar.hideCurrentSnackBar();
+                        if (seconds > 0) {
+                          await FirebaseFirestore.instance
+                              .collection('videos')
+                              .doc(v.id)
+                              .update({'duration_seconds': seconds});
+                          snackBar.showSnackBar(SnackBar(
+                            content: Text('Duration updated: ${YouTubeService.formatDuration(seconds)}'),
+                            backgroundColor: const Color(0xFF10B981),
+                          ));
+                        } else {
+                          snackBar.showSnackBar(const SnackBar(
+                            content: Text('Could not fetch duration (web or network error). Open on mobile to auto-sync.'),
+                            backgroundColor: Colors.orangeAccent,
+                          ));
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_note_rounded, color: Color(0xFF8B5CF6), size: 22),
+                      tooltip: 'Edit Video Details',
+                      onPressed: () => _showEditVideoDialog(context, repo, v, courses),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 22),
+                      tooltip: 'Delete Video Lesson',
+                      onPressed: () => _showDeleteVideoDialog(context, repo, v),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -404,64 +1528,670 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     );
   }
 
-  void _showAddVideoDialog(BuildContext context, LmsRepository repo, List<Course> courses) {
+  void _showEditVideoDialog(BuildContext context, LmsRepository repo, Video video, List<Course> courses) {
+    final titleCtrl = TextEditingController(text: video.title);
+    final youtubeCtrl = TextEditingController(text: video.youtubeId);
+    final descCtrl = TextEditingController(text: video.description);
+    String selectedCourseId = courses.any((c) => c.id == video.courseId) ? video.courseId : (courses.isNotEmpty ? courses.first.id : '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('Edit Recorded YouTube Lesson', style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Course Category:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 4),
+                DropdownButton<String>(
+                  value: selectedCourseId,
+                  dropdownColor: const Color(0xFF0F172A),
+                  isExpanded: true,
+                  style: const TextStyle(color: Colors.white),
+                  items: courses.map((c) {
+                    return DropdownMenuItem<String>(
+                      value: c.id,
+                      child: Text(c.title, overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() => selectedCourseId = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Lesson Title', labelStyle: TextStyle(color: Colors.white70)),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: youtubeCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'YouTube Video ID or Full Link',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'e.g. kJQP7kiw5Fk or https://youtu.be/kJQP7kiw5Fk',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Lesson Description', labelStyle: TextStyle(color: Colors.white70)),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF10B981).withAlpha(80)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, color: Color(0xFF10B981), size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Duration auto-detects from YouTube player on next play.',
+                          style: TextStyle(color: Color(0xFF10B981), fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                if (titleCtrl.text.isNotEmpty && youtubeCtrl.text.isNotEmpty) {
+                  String rawId = youtubeCtrl.text.trim();
+                  if (rawId.contains('v=')) {
+                    rawId = rawId.split('v=').last.split('&').first;
+                  } else if (rawId.contains('youtu.be/')) {
+                    rawId = rawId.split('youtu.be/').last.split('?').first;
+                  } else if (rawId.contains('youtube.com/shorts/')) {
+                    rawId = rawId.split('youtube.com/shorts/').last.split('?').first;
+                  }
+                  rawId = rawId.trim().split('/').last.split('?').first;
+
+                  // Reset duration to 0 if YouTube ID changed (will auto-sync on next play)
+                  final int? newDuration = (rawId != video.youtubeId) ? 0 : null;
+
+                  repo.updateVideo(
+                    id: video.id,
+                    courseId: selectedCourseId,
+                    title: titleCtrl.text,
+                    description: descCtrl.text,
+                    youtubeId: rawId,
+                    durationSeconds: newDuration,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteVideoDialog(BuildContext context, LmsRepository repo, Video video) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Confirm Video Deletion', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete lesson "${video.title}"?\n\nThis will remove the video document from the database and decrement course video count.',
+          style: const TextStyle(color: Color(0xFF94A3B8)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              repo.deleteVideo(video.id);
+              Navigator.pop(context);
+            },
+            child: const Text('Force Delete Video', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddCourseDialog(BuildContext context, LmsRepository repo) {
     final titleCtrl = TextEditingController();
-    final youtubeCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    String selectedCourseId = courses.isNotEmpty ? courses.first.id : 'course-1';
+    final thumbnailCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Add Recorded YouTube Class', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Lesson Title', labelStyle: TextStyle(color: Colors.white70)),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: youtubeCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'YouTube Video ID or Link', labelStyle: TextStyle(color: Colors.white70), hintText: 'e.g. kJQP7kiw5Fk'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: descCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Lesson Description', labelStyle: TextStyle(color: Colors.white70)),
-            ),
-          ],
+        title: const Text('Add New Course Category', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Course Title', labelStyle: TextStyle(color: Colors.white70)),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Course Description', labelStyle: TextStyle(color: Colors.white70)),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: thumbnailCtrl,
+                style: const TextStyle(color: Colors.white),
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Thumbnail (Base64 string or image URL)',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  hintText: 'Paste Base64 data URL or HTTP link',
+                  hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              if (titleCtrl.text.isNotEmpty && youtubeCtrl.text.isNotEmpty) {
-                // Extract video id if full url is pasted
-                String rawId = youtubeCtrl.text.trim();
-                if (rawId.contains('v=')) {
-                  rawId = rawId.split('v=').last.split('&').first;
-                } else if (rawId.contains('youtu.be/')) {
-                  rawId = rawId.split('youtu.be/').last.split('?').first;
-                }
-
-                repo.addVideo(
-                  courseId: selectedCourseId,
+              if (titleCtrl.text.isNotEmpty) {
+                repo.addCourse(
                   title: titleCtrl.text,
                   description: descCtrl.text,
-                  youtubeId: rawId,
-                  durationSeconds: 600,
+                  thumbnailUrl: thumbnailCtrl.text.trim().isNotEmpty
+                      ? thumbnailCtrl.text.trim()
+                      : 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=600',
                 );
                 Navigator.pop(context);
               }
             },
-            child: const Text('Save Lesson'),
+            child: const Text('Create Course'),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddVideoDialog(BuildContext context, LmsRepository repo, List<Course> courses) {
+    final titleCtrl = TextEditingController();
+    final youtubeCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final durationCtrl = TextEditingController();
+    String selectedCourseId = courses.isNotEmpty ? courses.first.id : 'course-1';
+    int selectedDefaultViews = 1;
+    bool isFetchingDuration = false;
+    int fetchedDurationSeconds = 0;
+
+    Future<void> fetchDuration(StateSetter setDialogState) async {
+      final rawId = YouTubeService.extractVideoId(youtubeCtrl.text);
+      if (rawId.isEmpty) return;
+      setDialogState(() => isFetchingDuration = true);
+      final seconds = await YouTubeService.fetchVideoDuration(rawId);
+      setDialogState(() {
+        isFetchingDuration = false;
+        fetchedDurationSeconds = seconds;
+        if (seconds > 0) {
+          durationCtrl.text = YouTubeService.formatDuration(seconds);
+        }
+      });
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('Add Recorded YouTube Class', style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select Course:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 4),
+                DropdownButton<String>(
+                  value: selectedCourseId,
+                  dropdownColor: const Color(0xFF0F172A),
+                  isExpanded: true,
+                  style: const TextStyle(color: Colors.white),
+                  items: courses.map((c) {
+                    return DropdownMenuItem<String>(
+                      value: c.id,
+                      child: Text(c.title, overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedCourseId = val);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Lesson Title',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // YouTube URL field + auto-fetch button
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: youtubeCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          labelText: 'YouTube Video ID or Full Link',
+                          labelStyle: TextStyle(color: Colors.white70),
+                          hintText: 'e.g. kJQP7kiw5Fk or https://youtu.be/...',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                        onSubmitted: (_) => fetchDuration(setDialogState),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    isFetchingDuration
+                        ? const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: SizedBox(
+                              width: 22, height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Color(0xFF10B981),
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            tooltip: 'Fetch Duration from YouTube',
+                            icon: const Icon(Icons.cloud_download_rounded,
+                                color: Color(0xFF10B981)),
+                            onPressed: () => fetchDuration(setDialogState),
+                          ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Duration field (auto-filled or manual input)
+                TextField(
+                  controller: durationCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Video Duration (auto-filled or type manually)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    hintText: 'e.g. 3:23 or 1:23:45',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 11),
+                    suffixIcon: fetchedDurationSeconds > 0
+                        ? const Icon(Icons.check_circle,
+                            color: Color(0xFF10B981), size: 18)
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        color: Color(0xFF94A3B8), size: 13),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        kIsWeb
+                            ? 'On web: type duration manually (e.g. 3:23). On mobile, tap ↓ to auto-fetch.'
+                            : 'Tap the ↓ icon to auto-fetch real duration from YouTube.',
+                        style: const TextStyle(
+                            color: Color(0xFF64748B), fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Lesson Description',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Default Student View Limit:',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 4),
+                DropdownButton<int>(
+                  value: selectedDefaultViews,
+                  dropdownColor: const Color(0xFF0F172A),
+                  isExpanded: true,
+                  style: const TextStyle(color: Colors.white),
+                  items: [1, 2, 3, 5, 10, 15, 20].map((limit) {
+                    return DropdownMenuItem<int>(
+                      value: limit,
+                      child: Text(
+                          '$limit View${limit > 1 ? 's' : ''} (Assign to all students)'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null)
+                      setDialogState(() => selectedDefaultViews = val);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                if (titleCtrl.text.isNotEmpty && youtubeCtrl.text.isNotEmpty) {
+                  final rawId =
+                      YouTubeService.extractVideoId(youtubeCtrl.text);
+                  // Parse manually-entered or auto-fetched duration
+                  int durationSec = YouTubeService
+                      .parseDurationString(durationCtrl.text.trim());
+                  // If field is empty, use what we fetched (or 0 = auto-detect from player)
+                  if (durationSec == 0) durationSec = fetchedDurationSeconds;
+
+                  repo.addVideo(
+                    courseId: selectedCourseId,
+                    title: titleCtrl.text,
+                    description: descCtrl.text,
+                    youtubeId: rawId,
+                    durationSeconds: durationSec,
+                    defaultAllowedViews: selectedDefaultViews,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Save Lesson'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleDeviceRequestCard(BuildContext context, LmsRepository repo, DeviceRequest req) {
+    final isPending = req.status == DeviceRequestStatus.pending;
+    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending ? Colors.orangeAccent.withAlpha(80) : _borderColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.phonelink_setup, color: Colors.orangeAccent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(req.studentName, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(req.studentEmail, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: req.status == DeviceRequestStatus.approved
+                      ? Colors.greenAccent.withAlpha(30)
+                      : req.status == DeviceRequestStatus.rejected
+                          ? Colors.redAccent.withAlpha(30)
+                          : Colors.orangeAccent.withAlpha(30),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  req.status.name.toUpperCase(),
+                  style: TextStyle(
+                    color: req.status == DeviceRequestStatus.approved
+                        ? Colors.greenAccent
+                        : req.status == DeviceRequestStatus.rejected
+                            ? Colors.redAccent
+                            : Colors.orangeAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: _inputBg, borderRadius: BorderRadius.circular(10)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('New Requested Device: ${req.newDeviceModel} (${req.newDeviceOs})', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text('New Device ID: ${req.newDeviceId}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                const SizedBox(height: 6),
+                Text('Reason: "${req.reason}"', style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontStyle: FontStyle.italic)),
+                const SizedBox(height: 4),
+                Text('Requested on: ${dateFormat.format(req.requestedAt)}', style: const TextStyle(color: Colors.white38, fontSize: 10)),
+              ],
+            ),
+          ),
+          if (isPending) ...[
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () => repo.respondToDeviceRequest(req.id, false),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)),
+                  child: const Text('Reject', style: TextStyle(color: Colors.redAccent)),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () => repo.respondToDeviceRequest(req.id, true),
+                  icon: const Icon(Icons.check, color: Colors.white, size: 16),
+                  label: const Text('Approve & Bind Device', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleStudentLimitsCard(BuildContext context, LmsRepository repo, AppUser student, List<Video> videos) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              UserAvatar(
+                profileImageBase64: student.profileImageBase64,
+                name: student.name,
+                radius: 20,
+                enablePreview: true,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.name,
+                      style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      student.email,
+                      style: TextStyle(color: _textSubColor, fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: student.isActive ? Colors.greenAccent.withAlpha(25) : Colors.redAccent.withAlpha(25),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: student.isActive ? Colors.greenAccent.withAlpha(80) : Colors.redAccent.withAlpha(80)),
+                ),
+                child: Text(
+                  student.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                  style: TextStyle(
+                    color: student.isActive ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: _borderColor),
+          const SizedBox(height: 8),
+          if (videos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'No videos available to configure limits.',
+                style: TextStyle(color: _textSubColor, fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            )
+          else
+            ...videos.map((v) {
+              final perm = repo.getPermissionForStudent(student.uid, v.id);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.all(10.0),
+                decoration: BoxDecoration(
+                  color: _inputBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: perm.isLimitReached ? Colors.redAccent.withAlpha(80) : _borderColor,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            v.title,
+                            style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Allowed: ${perm.allowedViews} views | Used: ${perm.usedViews} | Remaining: ${perm.remainingViews}',
+                            style: TextStyle(
+                              color: perm.isLimitReached ? Colors.redAccent : (_isDark ? Colors.greenAccent : const Color(0xFF15803D)),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Set Limit Dropdown / Button
+                    PopupMenuButton<int>(
+                      tooltip: 'Change Max Views',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _cardBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _borderColor),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Limit: ${perm.allowedViews}', style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                            const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5CF6), size: 18),
+                          ],
+                        ),
+                      ),
+                      onSelected: (newLimit) {
+                        repo.setStudentViewLimit(studentId: student.uid, videoId: v.id, allowedViews: newLimit);
+                      },
+                      itemBuilder: (_) => [1, 2, 3, 5, 10, 15, 20]
+                          .map((limit) => PopupMenuItem(value: limit, child: Text('Allow $limit Views')))
+                          .toList(),
+                    ),
+
+                    const SizedBox(width: 4),
+
+                    // Reset Views Button
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.orangeAccent, size: 20),
+                      tooltip: 'Reset Used Views',
+                      onPressed: () {
+                        repo.resetStudentViews(studentId: student.uid, videoId: v.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Reset view count for ${student.name} on "${v.title}"'), backgroundColor: Colors.orangeAccent),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -470,100 +2200,10 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   // --- TAB 3: VIEWING LIMITS & PERMISSIONS ---
   Widget _buildViewLimitsTab(BuildContext context, LmsRepository repo, List<AppUser> students, List<Video> videos) {
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 90),
       itemCount: students.length,
       itemBuilder: (context, sIdx) {
-        final student = students[sIdx];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF334155)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.person, color: Color(0xFF6366F1)),
-                  const SizedBox(width: 8),
-                  Text(student.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Text('(${student.email})', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(color: Color(0xFF334155)),
-              const SizedBox(height: 8),
-              ...videos.map((v) {
-                final perm = repo.getPermissionForStudent(student.uid, v.id);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(v.title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Allowed: ${perm.allowedViews} views | Used: ${perm.usedViews} | Remaining: ${perm.remainingViews}',
-                              style: TextStyle(
-                                color: perm.isLimitReached ? Colors.redAccent : Colors.greenAccent,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Set Limit Dropdown / Button
-                      PopupMenuButton<int>(
-                        tooltip: 'Change Max Views',
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF334155),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Text('Limit: ${perm.allowedViews}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                              const Icon(Icons.arrow_drop_down, color: Colors.white),
-                            ],
-                          ),
-                        ),
-                        onSelected: (newLimit) {
-                          repo.setStudentViewLimit(studentId: student.uid, videoId: v.id, allowedViews: newLimit);
-                        },
-                        itemBuilder: (_) => [1, 2, 3, 5, 10]
-                            .map((limit) => PopupMenuItem(value: limit, child: Text('Allow $limit Views')))
-                            .toList(),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      // Reset Views Button
-                      IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.orangeAccent, size: 20),
-                        tooltip: 'Reset Used Views',
-                        onPressed: () {
-                          repo.resetStudentViews(studentId: student.uid, videoId: v.id);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Reset view count for ${student.name} on "${v.title}"'), backgroundColor: Colors.orangeAccent),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ),
-        );
+        return _buildSingleStudentLimitsCard(context, repo, students[sIdx], videos);
       },
     );
   }
@@ -688,39 +2328,35 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   }
 
   // --- TAB 5: WATCH HISTORY & ANALYTICS ---
-  Widget _buildAnalyticsTab(BuildContext context, List<WatchSession> sessions) {
+  Widget _buildAnalyticsTab(BuildContext context, LmsRepository repo, List<WatchSession> sessions) {
     if (sessions.isEmpty) {
       return const Center(child: Text('No watch sessions recorded yet.', style: TextStyle(color: Colors.white54)));
     }
 
     final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+    final students = repo.getStudents();
 
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: sessions.length,
       itemBuilder: (context, index) {
         final s = sessions[index];
+        final studentUser = students.cast<AppUser?>().firstWhere((u) => u?.uid == s.studentId, orElse: () => null);
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: _cardBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF334155)),
+            border: Border.all(color: _borderColor),
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: s.isCompleted ? Colors.greenAccent.withAlpha(30) : Colors.orangeAccent.withAlpha(30),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  s.isCompleted ? Icons.check_circle_outline : Icons.timelapse,
-                  color: s.isCompleted ? Colors.greenAccent : Colors.orangeAccent,
-                  size: 24,
-                ),
+              UserAvatar(
+                profileImageBase64: studentUser?.profileImageBase64,
+                name: s.studentName,
+                radius: 20,
+                enablePreview: true,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -767,6 +2403,304 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           ),
         );
       },
+    );
+  }
+
+  // --- TAB 2: LIVE CLASSROOM MANAGEMENT ---
+  Widget _buildLiveClassTab(BuildContext context, LmsRepository repo) {
+    final liveClasses = repo.getLiveClasses();
+    final activeLive = repo.getActiveLiveClass();
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showLiveClassDialog(context, repo),
+          backgroundColor: const Color(0xFFDC2626),
+          icon: const Icon(Icons.add_to_queue_rounded, color: Colors.white),
+          label: const Text('Add / Manage Live Class', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 120),
+        children: [
+          // Header Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withAlpha(50),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.live_tv_rounded, color: Colors.white, size: 30),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Live Classroom Manager',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        activeLive != null
+                            ? '🔴 Currently Live: ${activeLive.title}'
+                            : 'No Live Class currently active for students.',
+                        style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          if (liveClasses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _borderColor),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.tv_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No Live Class Links Created',
+                    style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Add a Zoom or YouTube Live link so students can join live classroom lectures directly inside the app.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _showLiveClassDialog(context, repo),
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text('Add Live Class Link'),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...liveClasses.map((lc) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: lc.isActive ? Colors.redAccent : _borderColor,
+                    width: lc.isActive ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: lc.isActive ? Colors.redAccent.withAlpha(30) : _inputBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.videocam_rounded,
+                        color: lc.isActive ? Colors.redAccent : _textSubColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  lc.title,
+                                  style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: lc.isActive ? Colors.redAccent.withAlpha(30) : Colors.grey.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  lc.isActive ? '🔴 LIVE NOW' : 'OFFLINE',
+                                  style: TextStyle(
+                                    color: lc.isActive ? Colors.redAccent : Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Platform: ${lc.platform.toUpperCase()} • Link: ${lc.classUrl}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: lc.isActive,
+                      activeColor: Colors.redAccent,
+                      onChanged: (val) => repo.toggleLiveClassActive(lc.id, val),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Color(0xFF6366F1), size: 20),
+                      onPressed: () => _showLiveClassDialog(context, repo, existing: lc),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      onPressed: () => repo.deleteLiveClass(lc.id),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  void _showLiveClassDialog(BuildContext context, LmsRepository repo, {LiveClass? existing}) {
+    final titleCtrl = TextEditingController(text: existing?.title ?? '');
+    final descCtrl = TextEditingController(text: existing?.description ?? '');
+    final urlCtrl = TextEditingController(text: existing?.classUrl ?? '');
+    String platform = existing?.platform ?? 'zoom';
+    bool isActive = existing?.isActive ?? true;
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Text(existing == null ? 'Add Live Class Link' : 'Edit Live Class Link', style: const TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Class Title',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'e.g. Physics Chapter 4 Live Lecture',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Description (Optional)',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: urlCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Zoom Link / YouTube Live Link / Web Link',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    hintText: 'https://zoom.us/j/... or https://youtube.com/...',
+                    hintStyle: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Text('Platform:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    DropdownButton<String>(
+                      value: platform,
+                      dropdownColor: const Color(0xFF1E293B),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      items: const [
+                        DropdownMenuItem(value: 'zoom', child: Text('Zoom')),
+                        DropdownMenuItem(value: 'youtube', child: Text('YouTube Live')),
+                        DropdownMenuItem(value: 'web', child: Text('Web Stream')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => platform = val);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  title: const Text('Start Live Stream Now', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  subtitle: const Text('Shows Live Classroom Join button to students', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: isActive,
+                  activeColor: Colors.redAccent,
+                  onChanged: (val) => setDialogState(() => isActive = val),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              onPressed: () {
+                if (titleCtrl.text.isNotEmpty && urlCtrl.text.isNotEmpty) {
+                  repo.createOrUpdateLiveClass(
+                    id: existing?.id,
+                    title: titleCtrl.text,
+                    description: descCtrl.text,
+                    classUrl: urlCtrl.text,
+                    platform: platform,
+                    isActive: isActive,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(existing == null ? 'Publish Live Class' : 'Save Changes'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
