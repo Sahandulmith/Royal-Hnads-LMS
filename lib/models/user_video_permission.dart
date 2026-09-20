@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserVideoPermission {
   final String id;
   final String studentId;
@@ -31,15 +33,20 @@ class UserVideoPermission {
   }
 
   factory UserVideoPermission.fromMap(Map<String, dynamic> map, String docId) {
+    DateTime parseDate(dynamic val) {
+      if (val == null) return DateTime.now();
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
     return UserVideoPermission(
       id: docId,
       studentId: map['student_id'] ?? '',
       videoId: map['video_id'] ?? '',
       allowedViews: map['allowed_views'] ?? 1,
       usedViews: map['used_views'] ?? 0,
-      assignedAt: map['assigned_at'] != null 
-          ? DateTime.tryParse(map['assigned_at'].toString()) ?? DateTime.now() 
-          : DateTime.now(),
+      assignedAt: parseDate(map['assigned_at']),
     );
   }
 }

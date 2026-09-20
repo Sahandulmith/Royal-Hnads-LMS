@@ -308,7 +308,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 icon: Icons.phonelink_setup_rounded,
                 color: Colors.orangeAccent,
                 isAlert: pendingRequests.isNotEmpty,
-                onTap: () => setState(() => _selectedTabIndex = 2),
+                onTap: () => setState(() => _selectedTabIndex = 3),
               ),
             ),
             const SizedBox(width: 14),
@@ -319,7 +319,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 subtitle: '${watchSessions.length} Sessions',
                 icon: Icons.analytics_rounded,
                 color: Colors.greenAccent,
-                onTap: () => setState(() => _selectedTabIndex = 3),
+                onTap: () => setState(() => _selectedTabIndex = 4),
               ),
             ),
           ],
@@ -357,7 +357,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 icon: Icons.phonelink_lock_rounded,
                 label: 'Student Limits',
                 color: const Color(0xFF10B981),
-                onTap: () => setState(() => _selectedTabIndex = 2),
+                onTap: () => setState(() => _selectedTabIndex = 3),
               ),
             ),
           ],
@@ -381,7 +381,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           if (pendingRequests.length > 2)
             Center(
               child: TextButton.icon(
-                onPressed: () => setState(() => _selectedTabIndex = 2),
+                onPressed: () => setState(() => _selectedTabIndex = 3),
                 icon: const Icon(Icons.arrow_forward, color: Colors.orangeAccent, size: 16),
                 label: Text('View all ${pendingRequests.length} pending requests', style: const TextStyle(color: Colors.orangeAccent)),
               ),
@@ -398,7 +398,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             TextButton(
-              onPressed: () => setState(() => _selectedTabIndex = 3),
+              onPressed: () => setState(() => _selectedTabIndex = 4),
               child: const Text('View All', style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 12)),
             ),
           ],
@@ -579,9 +579,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const SizedBox(width: 12),
           _buildStatItem('Recorded Videos', '$videoCount', Icons.ondemand_video_rounded, const Color(0xFFA855F7), onTap: () => setState(() => _selectedTabIndex = 1)),
           const SizedBox(width: 12),
-          _buildStatItem('Pending Requests', '$pendingReqs', Icons.phonelink_setup_rounded, const Color(0xFFF59E0B), isAlert: pendingReqs > 0, onTap: () => setState(() => _selectedTabIndex = 2)),
+          _buildStatItem('Pending Requests', '$pendingReqs', Icons.phonelink_setup_rounded, const Color(0xFFF59E0B), isAlert: pendingReqs > 0, onTap: () => setState(() => _selectedTabIndex = 3)),
           const SizedBox(width: 12),
-          _buildStatItem('Total Sessions', '$sessionCount', Icons.history_rounded, const Color(0xFF10B981), onTap: () => setState(() => _selectedTabIndex = 3)),
+          _buildStatItem('Total Sessions', '$sessionCount', Icons.history_rounded, const Color(0xFF10B981), onTap: () => setState(() => _selectedTabIndex = 4)),
         ],
       ),
     );
@@ -658,106 +658,368 @@ class _AdminDashboardState extends State<AdminDashboard> {
           final s = students[index];
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cardBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _borderColor),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF6366F1).withAlpha(40),
-                  child: Text(
-                    s.name.isNotEmpty ? s.name.substring(0, 1).toUpperCase() : 'S',
-                    style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showStudentDetailsDialog(context, repo, s),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _borderColor),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              s.name.toUpperCase(),
-                              style: TextStyle(
-                                color: _textColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.3,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: s.isActive
-                                  ? Colors.greenAccent.withAlpha(30)
-                                  : Colors.redAccent.withAlpha(30),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              s.isActive ? 'ACTIVE' : 'DEACTIVATED',
-                              style: TextStyle(
-                                color: s.isActive ? Colors.greenAccent : Colors.redAccent,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: const Color(0xFF6366F1).withAlpha(40),
+                        child: Text(
+                          s.name.isNotEmpty ? s.name.substring(0, 1).toUpperCase() : 'S',
+                          style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(s.email, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.phonelink_lock, color: Colors.orangeAccent, size: 12),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              s.registeredDeviceId != null
-                                  ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
-                                  : 'Bound Device: None (Will bind on next login)',
-                              style: const TextStyle(color: Colors.orangeAccent, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Name & Status Badge
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.name,
+                                    style: TextStyle(
+                                      color: _textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: s.isActive
+                                        ? const Color(0xFF10B981).withAlpha(30)
+                                        : Colors.redAccent.withAlpha(30),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    s.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                                    style: TextStyle(
+                                      color: s.isActive ? const Color(0xFF10B981) : Colors.redAccent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+
+                            // 2. Email & Action Buttons Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.email,
+                                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Color(0xFF6366F1), size: 18),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Edit Student Details',
+                                  onPressed: () => _showEditStudentDialog(context, repo, s),
+                                ),
+                                const SizedBox(width: 12),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Force Remove Student',
+                                  onPressed: () => _showDeleteStudentDialog(context, repo, s),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 24,
+                                  child: Switch(
+                                    value: s.isActive,
+                                    activeColor: const Color(0xFF10B981),
+                                    onChanged: (_) => repo.toggleUserActive(s.uid),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+
+                            // 3. Device Info Row
+                            Row(
+                              children: [
+                                const Icon(Icons.phonelink_lock, color: Colors.orangeAccent, size: 13),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    s.registeredDeviceId != null
+                                        ? 'Bound Device: ${s.deviceModel ?? s.registeredDeviceId}'
+                                        : 'Bound Device: None (Will bind on next login)',
+                                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Color(0xFF6366F1), size: 20),
-                      tooltip: 'Edit Student Details',
-                      onPressed: () => _showEditStudentDialog(context, repo, s),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 20),
-                      tooltip: 'Force Remove Student',
-                      onPressed: () => _showDeleteStudentDialog(context, repo, s),
-                    ),
-                    Switch(
-                      value: s.isActive,
-                      activeColor: const Color(0xFF10B981),
-                      onChanged: (_) => repo.toggleUserActive(s.uid),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           );
         },
       ),
+    );
+  }
+
+  void _showStudentDetailsDialog(BuildContext context, LmsRepository repo, AppUser student) {
+    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155)),
+        ),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: const Color(0xFF6366F1).withAlpha(40),
+              child: Text(
+                student.name.isNotEmpty ? student.name.substring(0, 1).toUpperCase() : 'S',
+                style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Student Full Profile',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Complete Account & Hardware Record',
+                    style: TextStyle(color: const Color(0xFF94A3B8), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Account Details Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SelectableText(
+                            student.name,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: student.isActive ? Colors.greenAccent.withAlpha(30) : Colors.redAccent.withAlpha(30),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: student.isActive ? Colors.greenAccent.withAlpha(80) : Colors.redAccent.withAlpha(80)),
+                          ),
+                          child: Text(
+                            student.isActive ? 'ACTIVE' : 'DEACTIVATED',
+                            style: TextStyle(
+                              color: student.isActive ? Colors.greenAccent : Colors.redAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDetailRow('Email Address', student.email),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('User Account UID', student.uid),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Registration Date', dateFormat.format(student.createdAt)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Bound Hardware Device Card
+              const Text(
+                'Registered Hardware Device',
+                style: TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: student.registeredDeviceId != null
+                        ? Colors.amberAccent.withAlpha(100)
+                        : const Color(0xFF334155),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          student.registeredDeviceId != null
+                              ? Icons.phonelink_lock_rounded
+                              : Icons.phonelink_off_rounded,
+                          color: student.registeredDeviceId != null ? Colors.amberAccent : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          student.registeredDeviceId != null ? 'Account Bound to Specific Device' : 'Unbound (Will bind on next login)',
+                          style: TextStyle(
+                            color: student.registeredDeviceId != null ? Colors.amberAccent : Colors.grey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDetailRow('Device Model Name', student.deviceModel ?? 'None registered yet'),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Device OS / SDK Version', student.deviceOs ?? 'None registered yet'),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Hardware Unique ID', student.registeredDeviceId ?? 'UNBOUND'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.all(16),
+        actions: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              if (student.registeredDeviceId != null)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await repo.resetStudentDevice(student.uid);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Unbound device for ${student.name}. Next login will register new device.'),
+                          backgroundColor: Colors.orangeAccent,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.phonelink_erase_rounded, color: Colors.amberAccent, size: 16),
+                  label: const Text('Unbind Device', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.amberAccent),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showEditStudentDialog(context, repo, student);
+                },
+                icon: const Icon(Icons.edit, color: Colors.white, size: 16),
+                label: const Text('Edit Student', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _limitSearchQuery = student.name;
+                    _selectedTabIndex = 3;
+                  });
+                },
+                icon: const Icon(Icons.lock_clock_rounded, color: Colors.white, size: 16),
+                label: const Text('View Limits', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 2),
+        SelectableText(
+          value,
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 

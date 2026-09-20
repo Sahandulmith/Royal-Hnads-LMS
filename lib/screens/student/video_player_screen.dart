@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/services/lms_repository.dart';
 import '../../core/services/security_service.dart';
@@ -30,6 +31,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _isScreenRecordingDetected = false;
   bool _isFullScreen = false;
   bool _isFitOriginal = true;
+  LmsRepository? _repo;
+  String? _currentSessionId;
 
   // Timers
   late DateTime _sessionStartTime;
@@ -57,6 +60,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _checkPermissionAndInitPlayer();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _repo ??= Provider.of<LmsRepository>(context, listen: false);
+  }
+
   Future<void> _enableAntiScreenRecord() async {
     if (kIsWeb) return;
 
@@ -77,7 +86,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Future<void> _checkPermissionAndInitPlayer() async {
-    final repo = Provider.of<LmsRepository>(context, listen: false);
+    _repo ??= Provider.of<LmsRepository>(context, listen: false);
+    final repo = _repo!;
     final student = repo.currentUser;
 
     if (student == null) {
@@ -87,6 +97,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     // Admins bypass view limits
     if (student.isAdmin) {
+      _currentSessionId = 'session-admin-${const Uuid().v4().substring(0, 8)}';
+      await repo.recordWatchSession(
+        sessionId: _currentSessionId,
+        video: widget.video,
+        startTime: _sessionStartTime,
+        endTime: DateTime.now(),
+        watchDurationSeconds: 0,
+        isCompleted: false,
+      );
       _initSessionWatchTimer();
       if (mounted) {
         setState(() => _isLoadingPermission = false);
@@ -113,6 +132,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       videoId: widget.video.id,
     );
 
+    // Create session record in Firestore immediately upon consuming the view
+    _currentSessionId = 'session-${const Uuid().v4().substring(0, 8)}';
+    await repo.recordWatchSession(
+      sessionId: _currentSessionId,
+      video: widget.video,
+      startTime: _sessionStartTime,
+      endTime: DateTime.now(),
+      watchDurationSeconds: 0,
+      isCompleted: false,
+    );
+
     // Fetch updated permission object
     final updatedPerm = repo.getPermissionForStudent(student.uid, widget.video.id);
 
@@ -133,6 +163,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       if (!mounted) return;
       if ((_isPlaying || kIsWeb) && !_isScreenRecordingDetected) {
         _totalWatchedSeconds++;
+
+        // Periodically update watch session in Firestore every 5 seconds
+        if (_totalWatchedSeconds % 5 == 0 && _currentSessionId != null) {
+          _recordWatchSession(isCompleted: _hasLoggedCompletion);
+        }
 
         // Smoothly advance Flutter UI position timer every second when video is playing
         if (_isPlaying) {
@@ -228,10 +263,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Future<void> _recordWatchSession({required bool isCompleted}) async {
-    final repo = Provider.of<LmsRepository>(context, listen: false);
+    final repo = _repo;
+    if (repo == null) return;
     final endTime = DateTime.now();
 
     await repo.recordWatchSession(
+      sessionId: _currentSessionId,
       video: widget.video,
       startTime: _sessionStartTime,
       endTime: endTime,
@@ -246,8 +283,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _screenRecordingCheckTimer?.cancel();
     _hideControlsTimer?.cancel();
 
-    if (!_hasLoggedCompletion && !_isLimitReached) {
-      _recordWatchSession(isCompleted: false);
+    if (!_isLimitReached && _currentSessionId != null) {
+      _recordWatchSession(isCompleted: _hasLoggedCompletion);
     }
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

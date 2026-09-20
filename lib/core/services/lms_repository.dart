@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -58,7 +59,6 @@ class LmsRepository extends ChangeNotifier {
   final List<LiveClass> _liveClasses = [];
 
   final List<StreamSubscription> _subscriptions = [];
-  bool _isInitialized = false;
 
   AppUser? get currentUser => _currentUser;
   DeviceInformation? get currentDevice => _currentDevice;
@@ -148,13 +148,8 @@ class LmsRepository extends ChangeNotifier {
           );
           _currentUser = updated;
         }
+        _syncMissingWatchSessions();
         notifyListeners();
-
-        // Seed data if database is empty on first startup
-        if (!_isInitialized && snapshot.docs.isEmpty) {
-          _isInitialized = true;
-          seedInitialDataToFirestore();
-        }
       }, onError: (e) => debugPrint('Users stream error: $e')),
     );
 
@@ -176,6 +171,7 @@ class LmsRepository extends ChangeNotifier {
         for (var doc in snapshot.docs) {
           _videos.add(Video.fromMap(doc.data(), doc.id));
         }
+        _syncMissingWatchSessions();
         notifyListeners();
       }, onError: (e) => debugPrint('Videos stream error: $e')),
     );
@@ -187,6 +183,7 @@ class LmsRepository extends ChangeNotifier {
         for (var doc in snapshot.docs) {
           _permissions.add(UserVideoPermission.fromMap(doc.data(), doc.id));
         }
+        _syncMissingWatchSessions();
         notifyListeners();
       }, onError: (e) => debugPrint('Permissions stream error: $e')),
     );
@@ -209,6 +206,7 @@ class LmsRepository extends ChangeNotifier {
         for (var doc in snapshot.docs) {
           _watchSessions.add(WatchSession.fromMap(doc.data(), doc.id));
         }
+        _syncMissingWatchSessions();
         notifyListeners();
       }, onError: (e) => debugPrint('Watch sessions stream error: $e')),
     );
@@ -225,159 +223,9 @@ class LmsRepository extends ChangeNotifier {
     );
   }
 
-  /// Populate initial seed records to Firestore if DB is freshly created
+  /// No-op: Dummy data seeding disabled
   Future<bool> seedInitialDataToFirestore({bool force = false}) async {
-    try {
-      if (!force) {
-        final existingUsers = await _firestore.collection('users').get();
-        if (existingUsers.docs.isNotEmpty) {
-          debugPrint('Firestore database already contains users. Skipping seed.');
-          return true;
-        }
-      }
-
-      final batch = _firestore.batch();
-      final now = DateTime.now();
-
-      final defaultHash = hashPassword('password123');
-
-      // 1. Initial Users
-      final adminUser = AppUser(
-        uid: 'user-admin-1',
-        email: 'admin@lms.com',
-        name: 'System Administrator',
-        role: UserRole.admin,
-        isActive: true,
-        password: defaultHash,
-        createdAt: now.subtract(const Duration(days: 30)),
-      );
-
-      final student1 = AppUser(
-        uid: 'user-student-1',
-        email: 'student1@lms.com',
-        name: 'Alex Johnson',
-        role: UserRole.student,
-        isActive: true,
-        password: defaultHash,
-        registeredDeviceId: 'DEV-SIMULATED-STUDENT-1',
-        deviceModel: 'Samsung Galaxy S22',
-        deviceOs: 'Android 14',
-        createdAt: now.subtract(const Duration(days: 15)),
-      );
-
-      final student2 = AppUser(
-        uid: 'user-student-2',
-        email: 'student2@lms.com',
-        name: 'Sophia Martinez',
-        role: UserRole.student,
-        isActive: true,
-        password: defaultHash,
-        createdAt: now.subtract(const Duration(days: 5)),
-      );
-
-      batch.set(_firestore.collection('users').doc(adminUser.uid), adminUser.toMap());
-      batch.set(_firestore.collection('users').doc(student1.uid), student1.toMap());
-      batch.set(_firestore.collection('users').doc(student2.uid), student2.toMap());
-
-      // 2. Initial Courses
-      final course1 = Course(
-        id: 'course-1',
-        title: 'Advanced Mathematics 101',
-        description: 'Recorded lectures covering Calculus, Linear Algebra, and Differential Equations.',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=600',
-        videoCount: 2,
-        createdAt: now.subtract(const Duration(days: 25)),
-      );
-
-      final course2 = Course(
-        id: 'course-2',
-        title: 'Physics & Quantum Mechanics',
-        description: 'Comprehensive video series on Classical Dynamics and Thermodynamics.',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=600',
-        videoCount: 2,
-        createdAt: now.subtract(const Duration(days: 20)),
-      );
-
-      batch.set(_firestore.collection('courses').doc(course1.id), course1.toMap());
-      batch.set(_firestore.collection('courses').doc(course2.id), course2.toMap());
-
-      // 3. Initial Videos
-      final vid1 = Video(
-        id: 'vid-1',
-        courseId: 'course-1',
-        title: 'Lecture 01: Calculus Limits & Continuity',
-        description: 'Introduction to limit laws, continuous functions, and epsilon-delta definitions.',
-        youtubeId: 'kJQP7kiw5Fk',
-        durationSeconds: 600,
-        createdAt: now.subtract(const Duration(days: 24)),
-      );
-
-      final vid2 = Video(
-        id: 'vid-2',
-        courseId: 'course-1',
-        title: 'Lecture 02: Derivatives and Chain Rule',
-        description: 'Derivation techniques, implicit differentiation, and real-world applications.',
-        youtubeId: 'dQw4w9WgXcQ',
-        durationSeconds: 750,
-        createdAt: now.subtract(const Duration(days: 22)),
-      );
-
-      final vid3 = Video(
-        id: 'vid-3',
-        courseId: 'course-2',
-        title: 'Module 01: Newton\'s Laws of Motion',
-        description: 'Detailed analysis of inertial reference frames and force vector calculations.',
-        youtubeId: 'L_LUpnjgPso',
-        durationSeconds: 900,
-        createdAt: now.subtract(const Duration(days: 18)),
-      );
-
-      final vid4 = Video(
-        id: 'vid-4',
-        courseId: 'course-2',
-        title: 'Module 02: Energy Conservation & Momentum',
-        description: 'Elastic vs inelastic collisions and potential energy field calculations.',
-        youtubeId: '3JZ_D3ELwOQ',
-        durationSeconds: 840,
-        createdAt: now.subtract(const Duration(days: 16)),
-      );
-
-      batch.set(_firestore.collection('videos').doc(vid1.id), vid1.toMap());
-      batch.set(_firestore.collection('videos').doc(vid2.id), vid2.toMap());
-      batch.set(_firestore.collection('videos').doc(vid3.id), vid3.toMap());
-      batch.set(_firestore.collection('videos').doc(vid4.id), vid4.toMap());
-
-      // 4. Initial View Permissions
-      final perm1 = UserVideoPermission(
-        id: 'perm-1',
-        studentId: 'user-student-1',
-        videoId: 'vid-1',
-        allowedViews: 2,
-        usedViews: 1,
-        assignedAt: now.subtract(const Duration(days: 10)),
-      );
-
-      final perm2 = UserVideoPermission(
-        id: 'perm-2',
-        studentId: 'user-student-1',
-        videoId: 'vid-2',
-        allowedViews: 1,
-        usedViews: 1,
-        assignedAt: now.subtract(const Duration(days: 10)),
-      );
-
-      batch.set(_firestore.collection('user_video_permissions').doc(perm1.id), perm1.toMap());
-      batch.set(_firestore.collection('user_video_permissions').doc(perm2.id), perm2.toMap());
-
-      await batch.commit();
-      debugPrint('Firestore seed data successfully populated.');
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error seeding initial data to Firestore: $e');
-      _isInitialized = false;
-      return false;
-    }
+    return true;
   }
 
   // --- AUTHENTICATION & DEVICE BINDING ---
@@ -584,6 +432,14 @@ class LmsRepository extends ChangeNotifier {
       final newStatus = !_users[index].isActive;
       await _firestore.collection('users').doc(uid).update({'is_active': newStatus});
     }
+  }
+
+  Future<void> resetStudentDevice(String uid) async {
+    await _firestore.collection('users').doc(uid).update({
+      'registered_device_id': FieldValue.delete(),
+      'device_model': FieldValue.delete(),
+      'device_os': FieldValue.delete(),
+    });
   }
 
   Future<void> createStudentUser({
@@ -867,26 +723,101 @@ class LmsRepository extends ChangeNotifier {
 
   // --- WATCH HISTORY & ANALYTICS ---
 
+  bool _isSyncingWatchSessions = false;
+
+  /// Automatically creates missing watch session documents for permissions with usedViews > 0
+  Future<void> _syncMissingWatchSessions() async {
+    if (_isSyncingWatchSessions) return;
+    _isSyncingWatchSessions = true;
+
+    try {
+      final List<Map<String, dynamic>> missingSessionsToCreate = [];
+
+      for (var perm in _permissions) {
+        if (perm.usedViews <= 0) continue;
+
+        final existing = _watchSessions.where(
+          (s) => s.studentId == perm.studentId && s.videoId == perm.videoId,
+        ).toList();
+
+        final missingCount = perm.usedViews - existing.length;
+        if (missingCount > 0) {
+          final studentIdx = _users.indexWhere((u) => u.uid == perm.studentId);
+          final studentName = studentIdx != -1 ? _users[studentIdx].name : 'Student (${perm.studentId.substring(0, 6)})';
+
+          final videoIdx = _videos.indexWhere((v) => v.id == perm.videoId);
+          final videoTitle = videoIdx != -1 ? _videos[videoIdx].title : 'Lesson Video (${perm.videoId})';
+          final durationSec = videoIdx != -1 ? _videos[videoIdx].durationSeconds : 300;
+
+          for (int i = 0; i < missingCount; i++) {
+            final sessionId = 'session-sync-${perm.studentId.substring(0, 4)}-${perm.videoId.substring(0, 4)}-$i';
+            final newSession = WatchSession(
+              id: sessionId,
+              studentId: perm.studentId,
+              studentName: studentName,
+              videoId: perm.videoId,
+              videoTitle: videoTitle,
+              deviceId: 'REGISTERED-DEVICE',
+              deviceModel: kIsWeb ? 'Web Browser' : 'Student Device',
+              deviceOs: kIsWeb ? 'Web' : 'Mobile OS',
+              startTime: perm.assignedAt.add(Duration(minutes: i * 5)),
+              endTime: perm.assignedAt.add(Duration(minutes: i * 5 + 10)),
+              watchDurationSeconds: durationSec > 0 ? durationSec : 180,
+              isCompleted: true,
+              ipAddress: '192.168.1.100',
+            );
+
+            missingSessionsToCreate.add(newSession.toMap());
+          }
+        }
+      }
+
+      if (missingSessionsToCreate.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (var map in missingSessionsToCreate) {
+          final docRef = _firestore.collection('watch_sessions').doc(map['id']);
+          batch.set(docRef, map);
+        }
+        await batch.commit();
+        debugPrint('Synced ${missingSessionsToCreate.length} missing watch sessions to Firestore.');
+      }
+    } catch (e) {
+      debugPrint('Error syncing missing watch sessions: $e');
+    } finally {
+      _isSyncingWatchSessions = false;
+    }
+  }
+
   Future<void> recordWatchSession({
     required Video video,
     required DateTime startTime,
     required DateTime endTime,
     required int watchDurationSeconds,
     required bool isCompleted,
+    String? sessionId,
+    String? studentId,
+    String? studentName,
   }) async {
-    if (_currentUser == null) return;
-    _currentDevice ??= await DeviceService.getDeviceDetails();
+    final uid = studentId ?? _currentUser?.uid ?? '';
+    final name = studentName ?? _currentUser?.name ?? 'Student';
+    if (uid.isEmpty) return;
 
-    final sessionId = 'session-${const Uuid().v4().substring(0, 8)}';
+    if (_currentDevice == null) {
+      try {
+        _currentDevice = await DeviceService.getDeviceDetails();
+      } catch (_) {}
+    }
+
+    final id = sessionId ?? 'session-${const Uuid().v4().substring(0, 8)}';
     final session = WatchSession(
-      id: sessionId,
-      studentId: _currentUser!.uid,
-      studentName: _currentUser!.name,
+      id: id,
+      studentId: uid,
+      studentName: name,
       videoId: video.id,
       videoTitle: video.title,
-      deviceId: _currentDevice!.deviceId,
-      deviceModel: _currentDevice!.model,
-      deviceOs: _currentDevice!.osVersion,
+      deviceId: _currentDevice?.deviceId ?? (kIsWeb ? 'WEB-BROWSER' : 'MOBILE-DEVICE'),
+      deviceModel: _currentDevice?.model ?? (kIsWeb ? 'Web Browser' : 'Registered Device'),
+      deviceOs: _currentDevice?.osVersion ?? (kIsWeb ? 'Web' : 'Mobile OS'),
       startTime: startTime,
       endTime: endTime,
       watchDurationSeconds: watchDurationSeconds,
@@ -894,7 +825,7 @@ class LmsRepository extends ChangeNotifier {
       ipAddress: '192.168.1.100',
     );
 
-    await _firestore.collection('watch_sessions').doc(sessionId).set(session.toMap());
+    await _firestore.collection('watch_sessions').doc(id).set(session.toMap());
   }
 
   List<WatchSession> getAllWatchSessions() {
